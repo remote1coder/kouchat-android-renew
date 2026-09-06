@@ -30,6 +30,8 @@ import net.usikkert.kouchat.misc.Controller;
 import net.usikkert.kouchat.misc.ErrorHandler;
 import net.usikkert.kouchat.misc.User;
 import net.usikkert.kouchat.misc.UserList;
+import net.usikkert.kouchat.net.tcp.TCPNetworkService;
+import net.usikkert.kouchat.settings.NetworkMode;
 import net.usikkert.kouchat.settings.Settings;
 import net.usikkert.kouchat.util.TestUtils;
 
@@ -149,5 +151,102 @@ public class NetworkServiceTest {
 
         final boolean messageSent = networkService.sendMessageToUser("Nothing", user);
         assertFalse(messageSent);
+    }
+
+    @Test
+    public void sendMessageToAllUsersShouldUseBroadcastInsteadOfMulticastInBroadcastMode() {
+        when(settings.isNoPrivateChat()).thenReturn(true);
+        when(settings.getNetworkMode()).thenReturn(NetworkMode.BROADCAST);
+
+        final NetworkService networkService = new NetworkService(controller, settings, errorHandler);
+        final MessageSender messageSender = TestUtils.setFieldValueWithMock(networkService, "messageSender", MessageSender.class);
+        final TCPNetworkService tcpNetworkService =
+                TestUtils.setFieldValueWithMock(networkService, "tcpNetworkService", TCPNetworkService.class);
+
+        when(messageSender.sendBroadcast("message")).thenReturn(true);
+
+        assertTrue(networkService.sendMessageToAllUsers("message"));
+
+        verify(messageSender).sendBroadcast("message");
+        verify(messageSender, never()).send("message");
+        verify(tcpNetworkService).sendMessageToAll("message");
+    }
+
+    @Test
+    public void sendMessageToAllUsersShouldUseMulticastOutsideBroadcastMode() {
+        when(settings.isNoPrivateChat()).thenReturn(true);
+        when(settings.getNetworkMode()).thenReturn(NetworkMode.MULTICAST);
+
+        final NetworkService networkService = new NetworkService(controller, settings, errorHandler);
+        final MessageSender messageSender = TestUtils.setFieldValueWithMock(networkService, "messageSender", MessageSender.class);
+        final TCPNetworkService tcpNetworkService =
+                TestUtils.setFieldValueWithMock(networkService, "tcpNetworkService", TCPNetworkService.class);
+
+        when(messageSender.send("message")).thenReturn(true);
+
+        assertTrue(networkService.sendMessageToAllUsers("message"));
+
+        verify(messageSender).send("message");
+        verify(messageSender, never()).sendBroadcast(anyString());
+        verify(tcpNetworkService).sendMessageToAll("message");
+    }
+
+    @Test
+    public void sendMessageToAllUsersShouldUseTcpOnlyForMessagesTooLargeForUdp() {
+        when(settings.isNoPrivateChat()).thenReturn(true);
+        when(settings.getNetworkMode()).thenReturn(NetworkMode.MULTICAST);
+
+        final NetworkService networkService = new NetworkService(controller, settings, errorHandler);
+        final MessageSender messageSender = TestUtils.setFieldValueWithMock(networkService, "messageSender", MessageSender.class);
+        final TCPNetworkService tcpNetworkService =
+                TestUtils.setFieldValueWithMock(networkService, "tcpNetworkService", TCPNetworkService.class);
+        final ConnectionWorker connectionWorker =
+                TestUtils.setFieldValueWithMock(networkService, "connectionWorker", ConnectionWorker.class);
+
+        when(connectionWorker.isNetworkUp()).thenReturn(true);
+
+        // A message larger than the udp limit of 450 bytes
+        final StringBuilder sb = new StringBuilder(451);
+
+        for (int i = 0; i < 451; i++) {
+            sb.append('a');
+        }
+
+        final String longMessage = sb.toString();
+
+        assertTrue(networkService.sendMessageToAllUsers(longMessage));
+
+        verify(tcpNetworkService).sendMessageToAll(longMessage);
+        verify(messageSender, never()).send(anyString());
+        verify(messageSender, never()).sendBroadcast(anyString());
+    }
+
+    @Test
+    public void sendMessageToUserShouldUseTcpOnlyForMessagesTooLargeForUdp() {
+        when(settings.isNoPrivateChat()).thenReturn(false);
+        final User user = new User("User", 111);
+
+        final NetworkService networkService = new NetworkService(controller, settings, errorHandler);
+        final UDPSender udpSender = TestUtils.setFieldValueWithMock(networkService, "udpSender", UDPSender.class);
+        final TCPNetworkService tcpNetworkService =
+                TestUtils.setFieldValueWithMock(networkService, "tcpNetworkService", TCPNetworkService.class);
+        final ConnectionWorker connectionWorker =
+                TestUtils.setFieldValueWithMock(networkService, "connectionWorker", ConnectionWorker.class);
+
+        when(connectionWorker.isNetworkUp()).thenReturn(true);
+
+        // A message larger than the udp limit of 450 bytes
+        final StringBuilder sb = new StringBuilder(451);
+
+        for (int i = 0; i < 451; i++) {
+            sb.append('a');
+        }
+
+        final String longMessage = sb.toString();
+
+        assertTrue(networkService.sendMessageToUser(longMessage, user));
+
+        verify(tcpNetworkService).sendMessageToUser(longMessage, user);
+        verify(udpSender, never()).send(anyString(), anyString(), anyInt());
     }
 }

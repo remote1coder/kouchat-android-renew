@@ -27,7 +27,7 @@ import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
 import android.os.Build;
-import android.support.v4.app.NotificationCompat;
+import androidx.core.app.NotificationCompat;
 
 import net.usikkert.kouchat.android.R;
 import net.usikkert.kouchat.android.controller.ReceiveFileController;
@@ -198,7 +198,7 @@ public class FileTransferNotificationService {
         intent.putExtra("fileTransferId", fileReceiver.getId());
         intent.setAction("openReceiveFileDialog " + System.currentTimeMillis()); // Unique - to avoid it being cached
 
-        return PendingIntent.getActivity(context, notificationId, intent, 0);
+        return PendingIntent.getActivity(context, notificationId, intent, PendingIntent.FLAG_IMMUTABLE);
     }
 
     private PendingIntent createIntentForCancel(final int notificationId,
@@ -209,7 +209,7 @@ public class FileTransferNotificationService {
         intent.putExtra("fileTransferId", fileTransfer.getId());
         intent.setAction("cancelFileTransfer " + System.currentTimeMillis()); // Unique - to avoid it being cached
 
-        return PendingIntent.getService(context, notificationId, intent, 0);
+        return PendingIntent.getService(context, notificationId, intent, PendingIntent.FLAG_IMMUTABLE);
     }
 
     private void enableSwipeToCancel(final NotificationCompat.Builder notification) {

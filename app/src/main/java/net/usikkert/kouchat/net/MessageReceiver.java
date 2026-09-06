@@ -52,7 +52,7 @@ public class MessageReceiver implements Runnable {
 
     /** The multicast socket used for receiving messages. */
     @Nullable
-    private MulticastSocket mcSocket;
+    private volatile MulticastSocket mcSocket;
 
     /** The inetaddress object with the multicast ip address to receive messages from. */
     private InetAddress address;
@@ -61,7 +61,7 @@ public class MessageReceiver implements Runnable {
     private ReceiverListener listener;
 
     /** If connected to the network or not. */
-    private boolean connected;
+    private volatile boolean connected;
 
     /** The background thread watching for messages from the network. */
     private Thread worker;
@@ -118,19 +118,25 @@ public class MessageReceiver implements Runnable {
      */
     public void run() {
         while (connected) {
+            // Capture the socket into a local; stopReceiver() may null/close it concurrently,
+            // and using the field directly could NPE here.
+            final MulticastSocket socket = mcSocket;
+
+            if (socket == null) {
+                break;
+            }
+
             try {
                 final DatagramPacket packet = new DatagramPacket(
                         new byte[Constants.NETWORK_PACKET_SIZE], Constants.NETWORK_PACKET_SIZE);
 
-                if (connected) {
-                    mcSocket.receive(packet);
-                    final String ip = packet.getAddress().getHostAddress();
-                    final String message = new String(packet.getData(), Constants.MESSAGE_CHARSET).trim();
-                    LOG.log(Level.FINE, "Message arrived from " + ip + ": " + message);
+                socket.receive(packet);
+                final String ip = packet.getAddress().getHostAddress();
+                final String message = new String(packet.getData(), Constants.MESSAGE_CHARSET).trim();
+                LOG.log(Level.FINE, "Message arrived from " + ip + ": " + message);
 
-                    if (listener != null) {
-                        listener.messageArrived(message, ip);
-                    }
+                if (listener != null) {
+                    listener.messageArrived(message, ip);
                 }
             }
 
@@ -185,9 +191,19 @@ public class MessageReceiver implements Runnable {
 
                 mcSocket.setTrafficClass(IPTOS_RELIABILITY);
 
-                mcSocket.joinGroup(address);
-                LOG.log(Level.FINE, "Connected to " + mcSocket.getNetworkInterface());
+                try {
+                    mcSocket.joinGroup(address);
+                    LOG.log(Level.FINE, "Joined multicast group on " + mcSocket.getNetworkInterface());
+                }
+
+                catch (final IOException joinError) {
+                    // Multicast join failed (common on modern Android/WiFi).
+                    // The socket is still bound to port and can receive unicast packets.
+                    LOG.log(Level.WARNING, "Multicast join failed, continuing with unicast only: " + joinError);
+                }
+
                 connected = true;
+                LOG.log(Level.FINE, "Receiver connected on port " + port);
             }
         }
 

@@ -57,7 +57,7 @@ public class ChatLogger implements SettingsListener {
     private final String logFilePrefix;
 
     private BufferedWriter writer;
-    private boolean open;
+    private volatile boolean open;
     private String logFileName;
 
     /**
@@ -99,7 +99,7 @@ public class ChatLogger implements SettingsListener {
      * Opens the log file for writing.
      * Will append if the log file already exists.
      */
-    public void open() {
+    public synchronized void open() {
         close();
 
         try {
@@ -131,7 +131,7 @@ public class ChatLogger implements SettingsListener {
     /**
      * Flushed and closes the current open log file.
      */
-    public void close() {
+    public synchronized void close() {
         if (open) {
             try {
                 writer.flush();
@@ -155,7 +155,7 @@ public class ChatLogger implements SettingsListener {
      *
      * @param line The line of text to add to the log.
      */
-    public void append(final String line) {
+    public synchronized void append(final String line) {
         if (open) {
             try {
                 writer.append(line);

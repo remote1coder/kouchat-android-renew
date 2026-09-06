@@ -48,4 +48,28 @@ public interface NetworkMessageType {
     String SENDFILE = "SENDFILE";
     String CLIENT = "CLIENT";
     String PRIVMSG = "PRIVMSG";
+
+    /** A request to establish a direct point-to-point (unicast) connection, bypassing multicast. */
+    String P2P_CONNECT = "P2P_CONNECT";
+
+    /** This client's RSA public key (base64 X.509), sent to a peer during the key exchange. */
+    String PUBKEY = "PUBKEY";
+
+    /** A request for the peer to send its RSA public key. */
+    String KEYREQ = "KEYREQ";
+
+    /** The peer trusts this client's key; carries the RSA-wrapped AES session key and a signature. */
+    String KEYTRUST = "KEYTRUST";
+
+    /** Acknowledges trust back so the initiator can activate the encrypted channel. */
+    String KEYTRUSTACK = "KEYTRUSTACK";
+
+    /** The peer declined to trust this client's key. */
+    String KEYREJECT = "KEYREJECT";
+
+    /** An encrypted private chat message (base64 AES-GCM ciphertext). */
+    String ENCPRIVMSG = "ENCPRIVMSG";
+
+    /** An encrypted group chat message in P2P mode (base64 AES-GCM ciphertext). */
+    String ENCMSG = "ENCMSG";
 }

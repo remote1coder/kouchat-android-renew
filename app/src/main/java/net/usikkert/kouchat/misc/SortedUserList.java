@@ -37,6 +37,10 @@ import org.jetbrains.annotations.Nullable;
  * <p>The users in the list are sorted by nick name,
  * as specified in {@link User#compareTo(User)}.</p>
  *
+ * <p>All methods are synchronized because the list is read and mutated from several threads
+ * (receiver thread, async responder pool, IdleThread, Swing EDT). Without synchronization the
+ * backing ArrayList could be corrupted or throw ConcurrentModificationException.</p>
+ *
  * @author Christian Ihle
  */
 public class SortedUserList implements UserList {
@@ -61,7 +65,7 @@ public class SortedUserList implements UserList {
      * {@inheritDoc}
      */
     @Override
-    public boolean add(final User user) {
+    public synchronized boolean add(final User user) {
         Validate.notNull(user, "User can not be null");
 
         final boolean success = userList.add(user);
@@ -79,7 +83,7 @@ public class SortedUserList implements UserList {
      */
     @Nullable
     @Override
-    public User get(final int pos) {
+    public synchronized User get(final int pos) {
         if (pos < userList.size()) {
             return userList.get(pos);
         } else {
@@ -91,7 +95,7 @@ public class SortedUserList implements UserList {
      * {@inheritDoc}
      */
     @Override
-    public int indexOf(final User user) {
+    public synchronized int indexOf(final User user) {
         Validate.notNull(user, "User can not be null");
 
         return userList.indexOf(user);
@@ -101,7 +105,7 @@ public class SortedUserList implements UserList {
      * {@inheritDoc}
      */
     @Override
-    public boolean remove(final User user) {
+    public synchronized boolean remove(final User user) {
         Validate.notNull(user, "User can not be null");
 
         final int pos = userList.indexOf(user);
@@ -120,7 +124,7 @@ public class SortedUserList implements UserList {
      * {@inheritDoc}
      */
     @Override
-    public User set(final int pos, final User user) {
+    public synchronized User set(final int pos, final User user) {
         Validate.notNull(user, "User can not be null");
 
         final User oldUser = userList.set(pos, user);
@@ -134,37 +138,41 @@ public class SortedUserList implements UserList {
      * {@inheritDoc}
      */
     @Override
-    public int size() {
+    public synchronized int size() {
         return userList.size();
     }
 
     /**
-     * {@inheritDoc}
+     * Adds a listener for changes to the user list.
+     *
+     * @param listener The listener to add.
      */
     @Override
-    public void addUserListListener(final UserListListener listener) {
+    public synchronized void addUserListListener(final UserListListener listener) {
         Validate.notNull(listener, "UserListListener can not be null");
 
         listeners.add(listener);
     }
 
     /**
-     * {@inheritDoc}
+     * Removes a listener for changes to the user list.
+     *
+     * @param listener The listener to remove.
      */
     @Override
-    public void removeUserListListener(final UserListListener listener) {
+    public synchronized void removeUserListListener(final UserListListener listener) {
         Validate.notNull(listener, "UserListListener can not be null");
 
         listeners.remove(listener);
     }
 
     /**
-     * Returns the current listeners.
+     * Returns a snapshot of the current listeners.
      *
-     * @return The current listeners.
+     * @return A snapshot of the current listeners.
      */
-    public List<UserListListener> getListeners() {
-        return Collections.unmodifiableList(listeners);
+    public synchronized List<UserListListener> getListeners() {
+        return Collections.unmodifiableList(new ArrayList<>(listeners));
     }
 
     /**

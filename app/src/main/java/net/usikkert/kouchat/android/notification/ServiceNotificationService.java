@@ -27,7 +27,7 @@ import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
 import android.os.Build;
-import android.support.v4.app.NotificationCompat;
+import androidx.core.app.NotificationCompat;
 
 import net.usikkert.kouchat.android.R;
 import net.usikkert.kouchat.android.controller.MainChatController;
@@ -70,7 +70,7 @@ public class ServiceNotificationService {
 
     private PendingIntent createPendingIntent() {
         // Used to launch KouChat when clicking on the notification in the drawer
-        return PendingIntent.getActivity(context, 0, new Intent(context, MainChatController.class), 0);
+        return PendingIntent.getActivity(context, 0, new Intent(context, MainChatController.class), PendingIntent.FLAG_IMMUTABLE);
     }
 
     private void disableSwipeToCancel(final NotificationCompat.Builder notification) {

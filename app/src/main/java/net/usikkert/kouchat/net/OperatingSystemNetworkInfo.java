@@ -148,8 +148,15 @@ public class OperatingSystemNetworkInfo {
             return null;
         }
 
+        // Skip proxy/virtual adapter IPs (Mihomo/Clash: 198.18.x.x, link-local: 169.254.x.x)
+        final String ip = listener.getIpAddress();
+        if (ip.startsWith("198.18.") || ip.startsWith("198.19.") || ip.startsWith("169.254.")) {
+            LOG.fine("Detected OS network interface IP " + ip + " is in a proxy/virtual range, skipping");
+            return null;
+        }
+
         try {
-            final InetAddress osAddress = InetAddress.getByName(listener.getIpAddress());
+            final InetAddress osAddress = InetAddress.getByName(ip);
             return NetworkInterface.getByInetAddress(osAddress);
         }
 

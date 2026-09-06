@@ -176,6 +176,10 @@ public class DefaultMessageResponder implements MessageResponder {
         wList.removeWaitingUser(newUser.getCode());
         controller.getUserList().add(newUser);
         msgController.showSystemMessage(newUser.getNick() + " logged on from " + newUser.getIpAddress());
+
+        if (controller.isMeshMode()) {
+            controller.attemptP2pMesh(newUser);
+        }
     }
 
     /**
@@ -202,6 +206,10 @@ public class DefaultMessageResponder implements MessageResponder {
         wList.removeWaitingUser(newUser.getCode());
         controller.getUserList().add(newUser);
         msgController.showSystemMessage(newUser.getNick() + " showed up unexpectedly from " + newUser.getIpAddress());
+
+        if (controller.isMeshMode()) {
+            controller.attemptP2pMesh(newUser);
+        }
     }
 
     /**
@@ -386,11 +394,23 @@ public class DefaultMessageResponder implements MessageResponder {
      * @param ipAddress The IP address of that user.
      */
     @Override
-    public void userIdle(final int userCode, final String ipAddress) {
-        final User user = controller.getUser(userCode);
+    public void userIdle(final int userCode, final String nick, final String ipAddress) {
+        User user = controller.getUser(userCode);
 
         if (user == null) {
-            LOG.severe("Could not find user: %s", userCode);
+            // Unknown user: their LOGON/EXPOSING was lost (e.g. multicast filtered by a WiFi AP).
+            // The IDLE carries their identity (code + nick), so treat it as a continuous presence
+            // announcement and add them directly. Re-advertise ourselves so they learn about us too.
+            user = new User(nick, userCode);
+            user.setIpAddress(ipAddress);
+            user.setLogonTime(System.currentTimeMillis());
+            user.setLastIdle(System.currentTimeMillis());
+            controller.getUserList().add(user);
+            controller.sendExposingToIp(ipAddress);
+
+            if (controller.isMeshMode()) {
+                controller.attemptP2pMesh(user);
+            }
             return;
         }
 
@@ -425,9 +445,31 @@ public class DefaultMessageResponder implements MessageResponder {
      * Sends information about this client to the other clients.
      */
     @Override
-    public void exposeRequested() {
+    public void exposeRequested(final String ipAddress) {
         controller.sendExposingMessage();
+        controller.sendExposingToIp(ipAddress);
         controller.sendClientInfo();
+        // Also unicast the client info directly to the requester: the multicast copy of
+        // the CLIENT message (which carries the private chat port) is easily lost on WiFi,
+        // leaving the peer unable to send private messages ("no available port number").
+        controller.sendClientToIp(ipAddress);
+    }
+
+    /**
+     * A peer has requested a direct point-to-point connection.
+     *
+     * <p>Registers the peer for unicast communication so subsequent messages
+     * bypass multicast. Also re-advertises our own presence via unicast, since
+     * the initial LOGON/EXPOSE (sent via multicast before P2P mode engaged) may
+     * have been filtered - this ensures the peer learns about us and can show
+     * us in their user list.</p>
+     *
+     * {@inheritDoc}
+     */
+    @Override
+    public void p2pConnect(final User user, final String ipAddress) {
+        controller.addP2pPeer(ipAddress);
+        controller.sendExposingToIp(ipAddress);
     }
 
     /**
@@ -625,5 +667,81 @@ public class DefaultMessageResponder implements MessageResponder {
         else {
             LOG.severe("Could not find user: %s", userCode);
         }
+    }
+
+    /**
+     * A peer's public key arrived. Forwards to the controller to drive the trust handshake.
+     *
+     * @param userCode The unique code of the user who sent the key.
+     * @param publicKeyBase64 The base64-encoded public key.
+     */
+    @Override
+    public void pubKeyArrived(final int userCode, final String publicKeyBase64) {
+        controller.handlePubKey(userCode, publicKeyBase64);
+    }
+
+    /**
+     * A peer requested our public key.
+     *
+     * @param userCode The unique code of the requesting user.
+     */
+    @Override
+    public void keyReqArrived(final int userCode) {
+        controller.handleKeyReq(userCode);
+    }
+
+    /**
+     * A peer trusts our key and carries the wrapped session key.
+     *
+     * @param userCode The unique code of the user who sent the trust.
+     * @param wrappedKey Base64 RSA-OAEP-wrapped AES session key.
+     * @param signature Base64 SHA256withRSA signature.
+     */
+    @Override
+    public void keyTrustArrived(final int userCode, final String wrappedKey, final String signature) {
+        controller.handleKeyTrust(userCode, wrappedKey, signature);
+    }
+
+    /**
+     * A peer acknowledged trust back.
+     *
+     * @param userCode The unique code of the acknowledging user.
+     */
+    @Override
+    public void keyTrustAckArrived(final int userCode) {
+        controller.handleKeyTrustAck(userCode);
+    }
+
+    /**
+     * A peer declined to trust our key; informs the user in the relevant private chat.
+     *
+     * @param userCode The unique code of the rejecting user.
+     */
+    @Override
+    public void keyRejectArrived(final int userCode) {
+        controller.handleKeyReject(userCode);
+    }
+
+    /**
+     * An encrypted private message arrived. The controller decrypts it and shows it.
+     *
+     * @param userCode The unique code of the sender.
+     * @param ciphertextBase64 The base64 ciphertext.
+     * @param color The color chosen by the sender (sent in the clear).
+     */
+    @Override
+    public void encryptedPrivateMessageArrived(final int userCode, final String ciphertextBase64, final int color) {
+        controller.handleEncryptedPrivateMessage(userCode, ciphertextBase64, color);
+    }
+
+    /**
+     * An encrypted group chat message arrived (P2P mode). The controller decrypts and shows it.
+     *
+     * @param userCode The unique code of the sender.
+     * @param ciphertextBase64 The base64 ciphertext.
+     */
+    @Override
+    public void encryptedChatMessageArrived(final int userCode, final String ciphertextBase64) {
+        controller.handleEncryptedChatMessage(userCode, ciphertextBase64);
     }
 }

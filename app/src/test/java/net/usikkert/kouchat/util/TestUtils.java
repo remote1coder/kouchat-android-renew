@@ -152,33 +152,48 @@ public final class TestUtils {
     }
 
     private static void setValue(final Object object, final Object value, final Field field) {
-        final boolean originalAccessible = field.isAccessible();
-
-        try {
-            field.setAccessible(true);
-            removeFinal(field);
-            field.set(object, value);
+        if (Modifier.isStatic(field.getModifiers()) && Modifier.isFinal(field.getModifiers())) {
+            // Field.set refuses static final fields on modern JDKs, and the legacy
+            // "strip the final modifier via Field.modifiers" trick no longer works
+            // (Field.modifiers is filtered out and throws NoSuchFieldException on Java 16+).
+            // So write directly via sun.misc.Unsafe, accessed reflectively to avoid a
+            // compile-time dependency that is not visible under --release 8.
+            setStaticFinalViaUnsafe(field, value);
         }
 
-        catch (final IllegalAccessException e) {
-            throw new RuntimeException(e);
-        }
+        else {
+            final boolean originalAccessible = field.isAccessible();
 
-        catch (final NoSuchFieldException e) {
-            throw new RuntimeException(e);
-        }
+            try {
+                field.setAccessible(true);
+                field.set(object, value);
+            }
 
-        finally {
-            field.setAccessible(originalAccessible);
+            catch (final IllegalAccessException e) {
+                throw new RuntimeException(e);
+            }
+
+            finally {
+                field.setAccessible(originalAccessible);
+            }
         }
     }
 
-    // Mostly useful for static final fields
-    private static void removeFinal(final Field field) throws NoSuchFieldException, IllegalAccessException {
-        final Field modifiersField = Field.class.getDeclaredField("modifiers");
+    private static void setStaticFinalViaUnsafe(final Field field, final Object value) {
+        try {
+            final Class<?> unsafeClass = Class.forName("sun.misc.Unsafe");
+            final Field theUnsafe = unsafeClass.getDeclaredField("theUnsafe");
+            theUnsafe.setAccessible(true);
+            final Object unsafe = theUnsafe.get(null);
 
-        modifiersField.setAccessible(true);
-        modifiersField.setInt(field, field.getModifiers() & ~Modifier.FINAL);
+            final Object base = unsafeClass.getMethod("staticFieldBase", Field.class).invoke(unsafe, field);
+            final long offset = (Long) unsafeClass.getMethod("staticFieldOffset", Field.class).invoke(unsafe, field);
+            unsafeClass.getMethod("putObject", Object.class, long.class, Object.class).invoke(unsafe, base, offset, value);
+        }
+
+        catch (final Exception e) {
+            throw new RuntimeException("Could not set static final field '" + field.getName() + "' via sun.misc.Unsafe", e);
+        }
     }
 
     private static Field getField(final Object object, final String fieldName) {

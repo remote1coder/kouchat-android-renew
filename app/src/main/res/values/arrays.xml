@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<resources>
+  <string-array name="network_mode_entries">
+    <item>@string/settings_network_mode_multicast</item>
+    <item>@string/settings_network_mode_broadcast</item>
+    <item>@string/settings_network_mode_unicast</item>
+    <item>@string/settings_network_mode_p2p</item>
+  </string-array>
+  <string-array name="network_mode_values">
+    <item>multicast</item>
+    <item>lanbroadcast</item>
+    <item>unicast</item>
+    <item>p2p</item>
+  </string-array>
+</resources>

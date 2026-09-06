@@ -61,9 +61,10 @@ public final class Tools {
      * @return The current time.
      */
     public static String getTime() {
-        final int h = Calendar.getInstance().get(Calendar.HOUR_OF_DAY);
-        final int m = Calendar.getInstance().get(Calendar.MINUTE);
-        final int s = Calendar.getInstance().get(Calendar.SECOND);
+        final Calendar calendar = Calendar.getInstance();
+        final int h = calendar.get(Calendar.HOUR_OF_DAY);
+        final int m = calendar.get(Calendar.MINUTE);
+        final int s = calendar.get(Calendar.SECOND);
 
         return "[" + getDoubleDigit(h) + ":" + getDoubleDigit(m) + ":" + getDoubleDigit(s) + "]";
     }
@@ -189,6 +190,8 @@ public final class Tools {
 
         catch (final InterruptedException e) {
             LOG.log(Level.WARNING, e.toString());
+            // Re-set the interrupt flag so callers (e.g. ConnectionWorker.checkNetwork) can react to it.
+            Thread.currentThread().interrupt();
         }
     }
 

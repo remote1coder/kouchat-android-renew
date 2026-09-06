@@ -40,6 +40,7 @@ public enum PropertyFileSettings {
     BROWSER("browser"),
     LOOK_AND_FEEL("lookAndFeel"),
     NETWORK_INTERFACE("networkInterface"),
+    NETWORK_MODE("networkMode"),
     SOUND("sound"),
     SMILEYS("smileys");
 

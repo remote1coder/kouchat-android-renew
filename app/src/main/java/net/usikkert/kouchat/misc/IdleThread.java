@@ -63,7 +63,7 @@ public class IdleThread extends Thread {
     private final MessageController msgController;
 
     /** The thread runs while this is true. */
-    private boolean run;
+    private volatile boolean run;
 
     /**
      * Constructor. Makes sure the thread is ready to start.
@@ -100,21 +100,29 @@ public class IdleThread extends Thread {
         me.setLastIdle(System.currentTimeMillis());
 
         while (run) {
-            controller.sendIdleMessage();
-            boolean timeout = false;
+            try {
+                controller.sendIdleMessage();
+                boolean timeout = false;
 
-            for (int i = 0; i < userList.size(); i++) {
-                final User temp = userList.get(i);
+                for (int i = 0; i < userList.size(); i++) {
+                    final User temp = userList.get(i);
 
-                if (temp.getCode() != me.getCode() && temp.getLastIdle() < System.currentTimeMillis() - TIMEOUT) {
-                    userTimedOut(temp);
-                    timeout = true;
-                    i--;
+                    if (temp.getCode() != me.getCode() && temp.getLastIdle() < System.currentTimeMillis() - TIMEOUT) {
+                        userTimedOut(temp);
+                        timeout = true;
+                        i--;
+                    }
+                }
+
+                if (timeout) {
+                    controller.updateAfterTimeout();
                 }
             }
 
-            if (timeout) {
-                controller.updateAfterTimeout();
+            catch (final RuntimeException e) {
+                // Guard the loop body so a single unexpected exception does not silently kill the
+                // keepalive thread (which would make every other client time us out).
+                LOG.log(Level.WARNING, "Unexpected error in IdleThread, continuing", e);
             }
 
             try {

@@ -155,6 +155,53 @@ public class MessageParserTest {
         checkException(exceptionCaptor, NumberFormatException.class, "For input string: \"a2688\"");
     }
 
+    @Test
+    public void messageArrivedShouldParsePubKey() {
+        messageParser.messageArrived("99999!PUBKEY#Bob:BASE64PUBKEY", "192.168.1.1");
+        verify(responder).pubKeyArrived(99999, "BASE64PUBKEY");
+    }
+
+    @Test
+    public void messageArrivedShouldParseKeyReq() {
+        messageParser.messageArrived("99999!KEYREQ#Bob:", "192.168.1.1");
+        verify(responder).keyReqArrived(99999);
+    }
+
+    @Test
+    public void messageArrivedShouldParseKeyTrust() {
+        messageParser.messageArrived("99999!KEYTRUST#Bob:WRAPPED|SIG", "192.168.1.1");
+        verify(responder).keyTrustArrived(99999, "WRAPPED", "SIG");
+    }
+
+    @Test
+    public void messageArrivedShouldParseKeyTrustAckAndReject() {
+        messageParser.messageArrived("99999!KEYTRUSTACK#Bob:", "192.168.1.1");
+        verify(responder).keyTrustAckArrived(99999);
+
+        messageParser.messageArrived("99999!KEYREJECT#Bob:", "192.168.1.1");
+        verify(responder).keyRejectArrived(99999);
+    }
+
+    @Test
+    public void messageArrivedShouldParseEncryptedPrivateMessageForMe() {
+        // me.getCode() is 1234 (set in setUp). Target code in the message must match.
+        messageParser.messageArrived("99999!ENCPRIVMSG#Bob:(1234)[100]CIPHERTEXT", "192.168.1.1");
+        verify(responder).encryptedPrivateMessageArrived(99999, "CIPHERTEXT", 100);
+    }
+
+    @Test
+    public void messageArrivedShouldIgnoreEncryptedPrivateMessageForSomeoneElse() {
+        // Target code 5555 != me (1234), so the responder must not be called.
+        messageParser.messageArrived("99999!ENCPRIVMSG#Bob:(5555)[100]CIPHERTEXT", "192.168.1.1");
+        verify(responder, never()).encryptedPrivateMessageArrived(anyInt(), anyString(), anyInt());
+    }
+
+    @Test
+    public void messageArrivedShouldParseEncryptedChatMessage() {
+        messageParser.messageArrived("99999!ENCMSG#Bob:CIPHERTEXT", "192.168.1.1");
+        verify(responder).encryptedChatMessageArrived(99999, "CIPHERTEXT");
+    }
+
     @SuppressWarnings("ThrowableResultOfMethodCallIgnored")
     private void checkException(final ArgumentCaptor<Exception> exceptionCaptor,
                                 final Class<? extends Exception> expectedException,

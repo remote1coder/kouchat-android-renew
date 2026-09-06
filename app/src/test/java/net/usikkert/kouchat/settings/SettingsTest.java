@@ -32,7 +32,7 @@ import net.usikkert.kouchat.misc.User;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
-import org.junit.contrib.java.lang.system.RestoreSystemProperties;
+import net.usikkert.kouchat.junit.RestoreSystemProperties;
 
 /**
  * Test of {@link Settings}.

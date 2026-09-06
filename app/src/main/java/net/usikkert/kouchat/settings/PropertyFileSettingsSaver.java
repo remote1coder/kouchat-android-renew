@@ -84,6 +84,7 @@ public class PropertyFileSettingsSaver implements SettingsSaver {
         properties.put(BALLOONS.getKey(), String.valueOf(settings.isBalloons()));
         properties.put(SYSTEM_TRAY.getKey(), String.valueOf(settings.isSystemTray()));
         properties.put(NETWORK_INTERFACE.getKey(), Tools.emptyIfNull(settings.getNetworkInterface()));
+        properties.put(NETWORK_MODE.getKey(), settings.getNetworkMode().getKey());
 
         try {
             ioTools.createFolder(Constants.APP_FOLDER);

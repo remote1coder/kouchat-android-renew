@@ -27,17 +27,17 @@ import static org.mockito.Mockito.*;
 
 import java.io.File;
 import java.io.FileNotFoundException;
-import java.io.FileWriter;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URL;
+import java.nio.file.Files;
 import java.util.Properties;
 
 import net.usikkert.kouchat.junit.ExpectedException;
 
 import org.jetbrains.annotations.NonNls;
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -93,7 +93,6 @@ public class PropertyToolsTest {
     }
 
     @Test
-    @Ignore("Looks in the Android sdk folder for some reason")
     public void loadPropertiesShouldSuccessfullyLoadAllPropertiesInFileFromFullFileSystemPath() throws IOException {
         final File filePath = getPathTo("test-messages.properties");
 
@@ -107,7 +106,6 @@ public class PropertyToolsTest {
     }
 
     @Test
-    @Ignore("Looks in the Android sdk folder for some reason")
     public void loadPropertiesShouldCloseInputStreamWhenDoneLoading() throws IOException {
         final File filePath = getPathTo("test-messages.properties");
 
@@ -153,13 +151,13 @@ public class PropertyToolsTest {
     }
 
     @Test
-    @Ignore("Looks in the Android sdk folder for some reason")
     public void savePropertiesShouldThrowExceptionIfFileCouldNotBeSaved() throws IOException {
         expectedException.expect(FileNotFoundException.class);
-        // Linux: (Is a directory) || Windows: (Access is denied)
-        expectedException.expectMessageContaining("test-classes (");
+        // Writing below a missing directory fails on all platforms, with the directory
+        // name in the message.
+        expectedException.expectMessageContaining("nonexistent-dir");
 
-        final File filePath = getPathTo("");
+        final File filePath = new File(temporaryFolder.getRoot(), "nonexistent-dir" + File.separator + "file.properties");
 
         propertyTools.saveProperties(filePath.getAbsolutePath(), new Properties(), null);
     }
@@ -231,7 +229,7 @@ public class PropertyToolsTest {
     }
 
     @Test
-    public void savePropertiesShouldFlushAndCloseFileWriterWhenDone() throws IOException {
+    public void savePropertiesShouldFlushAndCloseFileOutputStreamWhenDone() throws IOException {
         final File filePath = getTempPathTo("temp4.properties");
 
         assertFalse(filePath.exists());
@@ -243,13 +241,14 @@ public class PropertyToolsTest {
 
         assertTrue(filePath.exists());
 
-        verify(ioTools).flush(any(FileWriter.class));
-        verify(ioTools).close(any(FileWriter.class));
+        verify(ioTools).flush(any(FileOutputStream.class));
+        verify(ioTools).close(any(FileOutputStream.class));
     }
 
     @Test
     public void savePropertiesShouldFlushAndCloseWriterEvenOnException() {
-        final File filePath = getPathTo("");
+        // Writing below a missing directory fails, so the writer never gets created.
+        final File filePath = new File(temporaryFolder.getRoot(), "nonexistent-dir" + File.separator + "file.properties");
 
         try {
             propertyTools.saveProperties(filePath.getAbsolutePath(), new Properties(), null);
@@ -257,15 +256,32 @@ public class PropertyToolsTest {
         }
 
         catch (final IOException e) {
-            verify(ioTools).flush(nullable(FileWriter.class));
-            verify(ioTools).close(nullable(FileWriter.class));
+            verify(ioTools).flush(nullable(FileOutputStream.class));
+            verify(ioTools).close(nullable(FileOutputStream.class));
         }
     }
 
-    private File getPathTo(@NonNls final String fileName) {
+    private File getPathTo(@NonNls final String fileName) throws IOException {
         final URL classpathUrl = getClass().getResource("/");
+        final File file = new File(classpathUrl.getPath(), fileName);
 
-        return new File(classpathUrl.getPath(), fileName);
+        if (file.isFile()) {
+            return file;
+        }
+
+        // Gradle (Android unit tests) keeps test resources in a separate classpath entry instead of
+        // next to the classes, so copy the resource to the temporary folder to get a real file path.
+        final File tempFile = new File(temporaryFolder.getRoot(), fileName);
+
+        try (InputStream inputStream = getClass().getResourceAsStream("/" + fileName)) {
+            if (inputStream == null) {
+                throw new FileNotFoundException("Could not find " + fileName + " on the classpath");
+            }
+
+            Files.copy(inputStream, tempFile.toPath());
+        }
+
+        return tempFile;
     }
 
     private File getTempPathTo(@NonNls final String fileName) {

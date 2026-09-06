@@ -22,8 +22,8 @@
 
 package net.usikkert.kouchat.net.tcp;
 
-import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 import net.usikkert.kouchat.misc.User;
 import net.usikkert.kouchat.util.Logger;
@@ -49,7 +49,7 @@ public class TCPUserClient implements TCPClientListener {
         Validate.notNull(user, "User can not be null");
         Validate.notNull(listener, "TCP message listener can not be null");
 
-        this.clients = new ArrayList<>();
+        this.clients = new CopyOnWriteArrayList<>();
         this.user = user;
         this.listener = listener;
 

@@ -22,25 +22,22 @@
 
 package net.usikkert.kouchat.util;
 
+import static org.junit.Assert.assertEquals;
+import static org.mockito.Mockito.mockConstruction;
 import static org.mockito.Mockito.verify;
-import static org.powermock.api.mockito.PowerMockito.*;
 
 import java.util.Timer;
 import java.util.TimerTask;
 
 import org.junit.Before;
 import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.powermock.core.classloader.annotations.PrepareForTest;
-import org.powermock.modules.junit4.PowerMockRunner;
+import org.mockito.MockedConstruction;
 
 /**
  * Test of {@link TimerTools}.
  *
  * @author Christian Ihle
  */
-@RunWith(PowerMockRunner.class)
-@PrepareForTest(TimerTools.class)
 public class TimerToolsTest {
 
     private TimerTools timerTools;
@@ -51,22 +48,21 @@ public class TimerToolsTest {
     }
 
     @Test
-    public void scheduleTimerTaskShouldScheduleOneTimeTaskWithCorrectNameAndDelay() throws Exception {
-        final Timer timer = mock(Timer.class);
-        final TimerTask timerTask = createTimerTask();
-
-        whenNew(Timer.class).withAnyArguments().thenReturn(timer);
-
-        timerTools.scheduleTimerTask("TheTimer", timerTask, 123);
-
-        verifyNew(Timer.class).withArguments("TheTimer");
-        verify(timer).schedule(timerTask, 123);
-    }
-
-    private TimerTask createTimerTask() {
-        return new TimerTask() {
+    public void scheduleTimerTaskShouldScheduleOneTimeTaskWithCorrectNameAndDelay() {
+        final TimerTask timerTask = new TimerTask() {
             @Override
             public void run() { }
         };
+
+        try (MockedConstruction<Timer> mockedConstruction = mockConstruction(Timer.class,
+                (mock, context) -> {
+                    assertEquals("TheTimer", context.arguments().get(0));
+                })) {
+
+            timerTools.scheduleTimerTask("TheTimer", timerTask, 123);
+
+            assertEquals(1, mockedConstruction.constructed().size());
+            verify(mockedConstruction.constructed().get(0)).schedule(timerTask, 123);
+        }
     }
 }

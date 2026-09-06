@@ -37,10 +37,10 @@ import android.content.ServiceConnection;
 import android.content.pm.PackageManager;
 import android.os.Bundle;
 import android.os.IBinder;
-import android.support.annotation.NonNull;
-import android.support.v4.app.ActivityCompat;
-import android.support.v4.content.ContextCompat;
-import android.support.v7.app.AppCompatActivity;
+import androidx.annotation.NonNull;
+import androidx.core.app.ActivityCompat;
+import androidx.core.content.ContextCompat;
+import androidx.appcompat.app.AppCompatActivity;
 import android.widget.Toast;
 
 /**
@@ -74,8 +74,8 @@ public class ReceiveFileController extends AppCompatActivity {
         // Override exit animation to avoid black screen when closing the dialog on
         // some versions of Android, like KitKat.
         // This was the only place the method had any effect.
-        overridePendingTransition(android.support.v7.appcompat.R.anim.abc_popup_enter,
-                                  android.support.v7.appcompat.R.anim.abc_popup_exit);
+        overridePendingTransition(androidx.appcompat.R.anim.abc_popup_enter,
+                                  androidx.appcompat.R.anim.abc_popup_exit);
     }
 
     @Override
@@ -113,16 +113,8 @@ public class ReceiveFileController extends AppCompatActivity {
 
         fileReceiver = androidUserInterface.getFileReceiver(userCode, fileTransferId);
 
-        final int permission = ContextCompat.checkSelfPermission(this, WRITE_EXTERNAL_STORAGE);
-
-        if (permission == PackageManager.PERMISSION_GRANTED) {
-            doShowDialog();
-        }
-
-        else {
-            ActivityCompat.requestPermissions(
-                    this, new String[] {WRITE_EXTERNAL_STORAGE}, WRITE_REQUEST_CODE);
-        }
+        // No storage permission needed: received files are saved to app-specific external storage.
+        doShowDialog();
     }
 
     private void doShowDialog() {

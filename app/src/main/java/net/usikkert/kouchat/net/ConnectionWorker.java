@@ -58,18 +58,18 @@ public class ConnectionWorker implements Runnable {
     private final NetworkUtils networkUtils = new NetworkUtils();
 
     /** Indicates whether the thread should run or not. */
-    private boolean run;
+    private volatile boolean run;
 
     /** Whether the network is up or not. */
-    private boolean networkUp;
+    private volatile boolean networkUp;
 
     /** The current network interface. */
     @Nullable
-    private NetworkInterface networkInterface;
+    private volatile NetworkInterface networkInterface;
 
     /** The working thread. */
     @Nullable
-    private Thread worker;
+    private volatile Thread worker;
 
     /** A list of connection listeners. */
     private final List<NetworkConnectionListener> listeners;
@@ -314,6 +314,15 @@ public class ConnectionWorker implements Runnable {
 
         LOG.finer("The operating system suggested the following invalid network interface: \n" +
                 networkUtils.getNetworkInterfaceInfo(osNetIf));
+
+        final NetworkInterface internetNetIf = networkUtils.findInternetFacingNetworkInterface();
+
+        if (networkUtils.isUsable(internetNetIf)) {
+            LOG.log(Level.FINER, "Using internet-facing network interface: \n" +
+                    networkUtils.getNetworkInterfaceInfo(internetNetIf));
+            return internetNetIf;
+        }
+
         LOG.log(Level.FINER, "Overriding operating system's choice of network interface with: \n" +
                 networkUtils.getNetworkInterfaceInfo(firstUsableNetIf));
 

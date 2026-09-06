@@ -157,7 +157,14 @@ public class MessageParser implements ReceiverListener {
                 }
 
                 else if (type.equals(EXPOSE)) {
-                    responder.exposeRequested();
+                    responder.exposeRequested(ipAddress);
+                }
+
+                else if (type.equals(P2P_CONNECT)) {
+                    final User user = new User(msgNick, msgCode);
+                    user.setIpAddress(ipAddress);
+                    user.setLastIdle(System.currentTimeMillis());
+                    responder.p2pConnect(user, ipAddress);
                 }
 
                 else if (type.equals(NICKCRASH)) {
@@ -202,7 +209,7 @@ public class MessageParser implements ReceiverListener {
                 }
 
                 else if (type.equals(IDLE)) {
-                    responder.userIdle(msgCode, ipAddress);
+                    responder.userIdle(msgCode, msgNick, ipAddress);
                 }
 
                 else if (type.equals(SENDFILEACCEPT)) {
@@ -295,6 +302,53 @@ public class MessageParser implements ReceiverListener {
                     }
 
                     responder.clientInfo(msgCode, client, timeSinceLogon, operatingSystem, privateChatPort, tcpChatPort);
+                }
+
+                else if (type.equals(PUBKEY)) {
+                    responder.pubKeyArrived(msgCode, msg);
+                }
+
+                else if (type.equals(KEYREQ)) {
+                    responder.keyReqArrived(msgCode);
+                }
+
+                else if (type.equals(KEYTRUST)) {
+                    final int separator = msg.indexOf("|");
+
+                    if (separator != -1) {
+                        final String wrappedKey = msg.substring(0, separator);
+                        final String signature = msg.substring(separator + 1, msg.length());
+                        responder.keyTrustArrived(msgCode, wrappedKey, signature);
+                    }
+                }
+
+                else if (type.equals(KEYTRUSTACK)) {
+                    responder.keyTrustAckArrived(msgCode);
+                }
+
+                else if (type.equals(KEYREJECT)) {
+                    responder.keyRejectArrived(msgCode);
+                }
+
+                else if (type.equals(ENCPRIVMSG)) {
+                    final int leftPara = msg.indexOf("(");
+                    final int rightPara = msg.indexOf(")");
+                    final int leftBracket = msg.indexOf("[");
+                    final int rightBracket = msg.indexOf("]");
+
+                    if (leftPara != -1 && rightPara != -1 && leftBracket != -1 && rightBracket != -1) {
+                        final int targetCode = Integer.parseInt(msg.substring(leftPara + 1, rightPara));
+
+                        if (targetCode == tempme.getCode()) {
+                            final int color = Integer.parseInt(msg.substring(leftBracket + 1, rightBracket));
+                            final String cipher = msg.substring(rightBracket + 1, msg.length());
+                            responder.encryptedPrivateMessageArrived(msgCode, cipher, color);
+                        }
+                    }
+                }
+
+                else if (type.equals(ENCMSG)) {
+                    responder.encryptedChatMessageArrived(msgCode, msg);
                 }
             }
 

@@ -778,6 +778,52 @@ public class CommandParser {
     }
 
     /**
+     * Sends a file to all online users except the application user.
+     *
+     * <p>The main chat is broadcast over UDP, but file transfers are
+     * point-to-point over TCP. To "broadcast" an image to everyone in the
+     * main chat it is therefore sent as a separate file transfer to each
+     * online user.</p>
+     *
+     * <p>Users that can not receive the file (for example because they are
+     * away) are skipped without aborting the rest of the broadcast.</p>
+     *
+     * @param file The file to send to all users.
+     */
+    public void sendFileToAllUsers(final FileToSend file) {
+        Validate.notNull(file, "File to send can not be null");
+
+        final UserList userList = controller.getUserList();
+        int recipientCount = 0;
+
+        for (int i = 0; i < userList.size(); i++) {
+            if (!userList.get(i).isMe()) {
+                recipientCount++;
+            }
+        }
+
+        msgController.showSystemMessage(coreMessages.getMessage(
+                "core.sendFile.broadcast.systemMessage.summary",
+                file.getName(), recipientCount));
+
+        for (int i = 0; i < userList.size(); i++) {
+            final User user = userList.get(i);
+
+            if (user.isMe()) {
+                continue;
+            }
+
+            try {
+                sendFile(user, file);
+            } catch (final CommandException e) {
+                msgController.showSystemMessage(coreMessages.getMessage(
+                        "core.sendFile.broadcast.systemMessage.skipped",
+                        file.getName(), user.getNick(), e.getMessage()));
+            }
+        }
+    }
+
+    /**
      * Cancels a file transfer, even if the file transfer has not been
      * answered by the other user yet.
      *

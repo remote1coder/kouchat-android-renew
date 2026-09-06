@@ -26,7 +26,6 @@ import static org.mockito.Mockito.*;
 
 import java.io.PrintStream;
 
-import org.junit.contrib.java.lang.system.StandardOutputStreamLog;
 import org.junit.rules.TestRule;
 import org.junit.runner.Description;
 import org.junit.runners.model.Statement;
@@ -36,7 +35,7 @@ import org.junit.runners.model.Statement;
  *
  * <p>Use regular verify methods directly on {@link System#out} during tests.</p>
  *
- * <p>This is better than {@link StandardOutputStreamLog}, which registers as an additional stream,
+ * <p>This is better than StandardOutputStreamLog, which registers as an additional stream,
  * keeping the output to the console.</p>
  *
  * @author Christian Ihle

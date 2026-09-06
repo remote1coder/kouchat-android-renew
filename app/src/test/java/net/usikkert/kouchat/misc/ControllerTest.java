@@ -28,6 +28,7 @@ import static org.mockito.Mockito.*;
 import java.util.Arrays;
 import java.util.Date;
 
+import net.usikkert.kouchat.Constants;
 import net.usikkert.kouchat.event.NetworkConnectionListener;
 import net.usikkert.kouchat.junit.ExpectedException;
 import net.usikkert.kouchat.message.CoreMessages;
@@ -37,6 +38,7 @@ import net.usikkert.kouchat.net.FileToSend;
 import net.usikkert.kouchat.net.NetworkMessages;
 import net.usikkert.kouchat.net.NetworkService;
 import net.usikkert.kouchat.net.TransferList;
+import net.usikkert.kouchat.settings.NetworkMode;
 import net.usikkert.kouchat.settings.Settings;
 import net.usikkert.kouchat.settings.SettingsSaver;
 import net.usikkert.kouchat.ui.PrivateChatWindow;
@@ -168,7 +170,7 @@ public class ControllerTest {
 
         // Not writing - nothing happens
         controller.updateMeWriting(false);
-        verifyZeroInteractions(networkMessages);
+        verifyNoInteractions(networkMessages);
         assertFalse(me.isWriting());
 
         // Wrote something - notify others and update me
@@ -286,7 +288,7 @@ public class ControllerTest {
     public void beforeNetworkCameUpShouldDoNothing() {
         controller.beforeNetworkCameUp();
 
-        verifyZeroInteractions(networkService, networkMessages);
+        verifyNoInteractions(networkService, networkMessages);
     }
 
     @Test
@@ -561,7 +563,7 @@ public class ControllerTest {
 
         controller.changeAwayStatus(654, true, "Away message");
 
-        verifyZeroInteractions(networkMessages);
+        verifyNoInteractions(networkMessages);
         verify(userListController).changeAwayStatus(654, true, "Away message");
     }
 
@@ -572,7 +574,7 @@ public class ControllerTest {
 
         controller.changeAwayStatus(654, false, "");
 
-        verifyZeroInteractions(networkMessages);
+        verifyNoInteractions(networkMessages);
         verify(userListController).changeAwayStatus(654, false, "");
     }
 
@@ -674,11 +676,24 @@ public class ControllerTest {
     @Test
     public void sendChatMessageShouldThrowExceptionIfMessageIsTooLong() throws CommandException {
         expectedException.expect(CommandException.class);
-        expectedException.expectMessage("You can not send a chat message with more than 450 bytes");
+        expectedException.expectMessage(java.text.MessageFormat.format(
+                "You can not send a chat message with more than {0} bytes", Constants.MESSAGE_MAX_BYTES_CHAT));
 
         doReturn(true).when(controller).isConnected();
 
-        controller.sendChatMessage(createStringOfSize(451));
+        controller.sendChatMessage(createStringOfSize(Constants.MESSAGE_MAX_BYTES_CHAT + 1));
+    }
+
+    @Test
+    public void sendChatMessageShouldSendMessageLargerThanUdpSize() throws CommandException {
+        doReturn(true).when(controller).isConnected();
+
+        // A message that does not fit in a udp packet, but is within the chat limit.
+        final String message = createStringOfSize(Constants.MESSAGE_MAX_BYTES + 1);
+
+        controller.sendChatMessage(message);
+
+        verify(networkMessages).sendChatMessage(message);
     }
 
     @Test
@@ -688,6 +703,65 @@ public class ControllerTest {
         controller.sendChatMessage("the message");
 
         verify(networkMessages).sendChatMessage("the message");
+    }
+
+    @Test
+    public void sendChatMessageShouldSendUnicastToEachOnlineUserInUnicastMode() throws CommandException {
+        doReturn(true).when(controller).isConnected();
+        settings.setNetworkMode(NetworkMode.UNICAST);
+
+        otherUser.setOnline(true);
+        otherUser.setIpAddress("192.168.1.5");
+        userList.add(otherUser);
+
+        when(networkService.sendChatMessageToIp("the message", "192.168.1.5")).thenReturn(true);
+
+        controller.sendChatMessage("the message");
+
+        verify(networkService).sendChatMessageToIp("the message", "192.168.1.5");
+        verify(networkMessages, never()).sendChatMessage(anyString());
+    }
+
+    @Test
+    public void sendChatMessageShouldThrowExceptionInUnicastModeWhenNoPeersAreOnline() throws CommandException {
+        expectedException.expect(CommandException.class);
+        expectedException.expectMessage("No other users are online to receive unicast messages. "
+                + "Wait for someone to log on, or switch to Multicast or Broadcast mode.");
+
+        doReturn(true).when(controller).isConnected();
+        settings.setNetworkMode(NetworkMode.UNICAST);
+
+        controller.sendChatMessage("the message");
+    }
+
+    @Test
+    public void setNetworkModeToUnicastShouldPersistAndMeshWithOnlineUsers() {
+        otherUser.setOnline(true);
+        otherUser.setIpAddress("192.168.1.5");
+        userList.add(otherUser);
+
+        controller.setNetworkMode(NetworkMode.UNICAST);
+
+        assertEquals(NetworkMode.UNICAST, settings.getNetworkMode());
+        verify(settingsSaver).saveSettings();
+        verify(networkService).addP2pPeer("192.168.1.5");
+    }
+
+    @Test
+    public void setNetworkModeShouldNotMeshWhenSwitchingToMulticastOrBroadcast() {
+        otherUser.setOnline(true);
+        otherUser.setIpAddress("192.168.1.5");
+        userList.add(otherUser);
+
+        controller.setNetworkMode(NetworkMode.MULTICAST);
+
+        assertEquals(NetworkMode.MULTICAST, settings.getNetworkMode());
+        verify(networkService, never()).addP2pPeer(anyString());
+
+        controller.setNetworkMode(NetworkMode.BROADCAST);
+
+        assertEquals(NetworkMode.BROADCAST, settings.getNetworkMode());
+        verify(networkService, never()).addP2pPeer(anyString());
     }
 
     @Test
@@ -777,11 +851,12 @@ public class ControllerTest {
     @Test
     public void sendPrivateMessageShouldThrowExceptionIfMessageIsTooLong() throws CommandException {
         expectedException.expect(CommandException.class);
-        expectedException.expectMessage("You can not send a private chat message with more than 450 bytes");
+        expectedException.expectMessage(java.text.MessageFormat.format(
+                "You can not send a private chat message with more than {0} bytes", Constants.MESSAGE_MAX_BYTES_CHAT));
 
         doReturn(true).when(controller).isConnected();
 
-        controller.sendPrivateMessage(createStringOfSize(451), otherUser);
+        controller.sendPrivateMessage(createStringOfSize(Constants.MESSAGE_MAX_BYTES_CHAT + 1), otherUser);
     }
 
     @Test

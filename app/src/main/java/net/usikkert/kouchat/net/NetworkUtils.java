@@ -22,6 +22,7 @@
 
 package net.usikkert.kouchat.net;
 
+import java.net.DatagramSocket;
 import java.net.Inet4Address;
 import java.net.InetAddress;
 import java.net.NetworkInterface;
@@ -72,11 +73,15 @@ public class NetworkUtils {
         }
 
         try {
+            final String name = netif.getName().toLowerCase();
+            final String displayName = netif.getDisplayName() != null ? netif.getDisplayName().toLowerCase() : "";
+
             return netif.isUp() && !netif.isLoopback() && !netif.isPointToPoint() &&
                     !netif.isVirtual() && netif.supportsMulticast() &&
-                    !netif.getName().toLowerCase().contains("vmnet") &&
-                    !netif.getDisplayName().toLowerCase().contains("vmnet") &&
-                    hasIPv4Address(netif);
+                    !name.contains("vmnet") && !displayName.contains("vmnet") &&
+                    !name.contains("mihomo") && !displayName.contains("mihomo") &&
+                    !displayName.contains("meta tunnel") &&
+                    hasIPv4Address(netif) && !hasOnlyProxyAddresses(netif);
         }
 
         catch (final SocketException e) {
@@ -106,6 +111,82 @@ public class NetworkUtils {
         }
 
         return false;
+    }
+
+    /**
+     * Checks if the network interface only has IPv4 addresses in proxy/virtual ranges.
+     * These include the 198.18.0.0/15 range (used by Mihomo/Clash proxies) and
+     * 169.254.0.0/16 (link-local/auto-config). If all addresses are in these ranges,
+     * the interface is a proxy/virtual adapter, not a real LAN adapter.
+     *
+     * @param netif The network interface to check.
+     * @return True if all IPv4 addresses are in proxy/virtual ranges.
+     */
+    public boolean hasOnlyProxyAddresses(@Nullable final NetworkInterface netif) {
+        if (netif == null) {
+            return true;
+        }
+
+        final Enumeration<InetAddress> inetAddresses = netif.getInetAddresses();
+        boolean hasIPv4 = false;
+
+        while (inetAddresses.hasMoreElements()) {
+            final InetAddress inetAddress = inetAddresses.nextElement();
+            if (inetAddress instanceof Inet4Address) {
+                hasIPv4 = true;
+                final String ip = inetAddress.getHostAddress();
+
+                // Skip 198.18.0.0/15 (Mihomo/Clash proxy range)
+                if (ip.startsWith("198.18.") || ip.startsWith("198.19.")) {
+                    continue;
+                }
+
+                // Skip 169.254.0.0/16 (link-local/auto-config)
+                if (ip.startsWith("169.254.")) {
+                    continue;
+                }
+
+                // Skip 172.16.0.0/12 (Hyper-V Default Switch / WSL / Docker internal virtual ranges)
+                if (isPrivate172Range(ip)) {
+                    continue;
+                }
+
+                // Found a real LAN address
+                return false;
+            }
+        }
+
+        // No IPv4 at all, or all IPv4 are in proxy ranges
+        return hasIPv4;
+    }
+
+    /**
+     * Checks if the ip address is in the private 172.16.0.0/12 range
+     * (172.16.x.x - 172.31.x.x), commonly used by Hyper-V Default Switch,
+     * WSL and Docker internal virtual adapters.
+     *
+     * @param ip The ip address to check.
+     * @return True if the ip is in the 172.16.0.0/12 range.
+     */
+    private static boolean isPrivate172Range(final String ip) {
+        if (!ip.startsWith("172.")) {
+            return false;
+        }
+
+        final String[] octets = ip.split("\\.");
+
+        if (octets.length < 2) {
+            return false;
+        }
+
+        try {
+            final int secondOctet = Integer.parseInt(octets[1]);
+            return secondOctet >= 16 && secondOctet <= 31;
+        }
+
+        catch (final NumberFormatException e) {
+            return false;
+        }
     }
 
     /**
@@ -287,6 +368,44 @@ public class NetworkUtils {
         }
 
         return null;
+    }
+
+    /**
+     * Finds the network interface the operating system uses to reach the internet,
+     * by connecting a datagram socket to a public address and reading which local
+     * address the routing table selected as the source.
+     *
+     * <p>No packets are actually sent: {@code DatagramSocket.connect} only consults
+     * the routing table to resolve the local source address. This reliably returns
+     * the real LAN adapter (the default route) instead of virtual or proxy adapters
+     * that {@link #findFirstUsableNetworkInterface()} may pick first.</p>
+     *
+     * @return The internet-facing network interface, or <code>null</code> if it
+     *         could not be determined.
+     */
+    @Nullable
+    public NetworkInterface findInternetFacingNetworkInterface() {
+        try (final DatagramSocket socket = new DatagramSocket()) {
+            socket.connect(InetAddress.getByName("8.8.8.8"), 53);
+            final InetAddress localAddress = socket.getLocalAddress();
+
+            if (localAddress.isAnyLocalAddress() || localAddress.isLoopbackAddress()) {
+                return null;
+            }
+
+            final NetworkInterface networkInterface = NetworkInterface.getByInetAddress(localAddress);
+
+            if (!isUsable(networkInterface)) {
+                return null;
+            }
+
+            return networkInterface;
+        }
+
+        catch (final Exception e) {
+            LOG.log(Level.FINE, "Could not detect internet-facing network interface: " + e);
+            return null;
+        }
     }
 
     /**

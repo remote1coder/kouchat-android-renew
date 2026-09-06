@@ -42,7 +42,7 @@ public class TimerTools {
      * @param delay Number of milliseconds to wait before executing the timer task.
      */
     public void scheduleTimerTask(@NonNls final String name, final TimerTask timerTask, final long delay) {
-        final Timer delayedLogonTimer = new Timer(name);
+        final Timer delayedLogonTimer = new Timer(name, true);
         delayedLogonTimer.schedule(timerTask, delay);
     }
 }

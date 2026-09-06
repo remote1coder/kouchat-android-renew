@@ -368,6 +368,87 @@ public class NetworkMessagesTest {
     }
 
     /**
+     * Tests sendPubKey(): the public key is sent over the unicast UDP path to the peer's IP.
+     */
+    @Test
+    public void testSendPubKey() {
+        final User user = new User("Peer", 435435);
+        user.setPrivateChatPort(12345);
+        user.setIpAddress("192.168.5.155");
+
+        messages.sendPubKey(user, "BASE64PUBKEY");
+        verify(service).sendMessageToIp(createMessage("PUBKEY") + "BASE64PUBKEY", "192.168.5.155");
+    }
+
+    /**
+     * Tests sendKeyReq(): empty payload over unicast UDP.
+     */
+    @Test
+    public void testSendKeyReq() {
+        final User user = new User("Peer", 435435);
+        user.setIpAddress("192.168.5.155");
+        messages.sendKeyReq(user);
+        verify(service).sendMessageToIp(createMessage("KEYREQ"), "192.168.5.155");
+    }
+
+    /**
+     * Tests sendKeyTrust(): wrapped key and signature separated by a pipe.
+     */
+    @Test
+    public void testSendKeyTrust() {
+        final User user = new User("Peer", 435435);
+        user.setIpAddress("192.168.5.155");
+        messages.sendKeyTrust(user, "WRAPPED", "SIG");
+        verify(service).sendMessageToIp(createMessage("KEYTRUST") + "WRAPPED|SIG", "192.168.5.155");
+    }
+
+    /**
+     * Tests sendKeyTrustAck() and sendKeyReject().
+     */
+    @Test
+    public void testSendKeyTrustAckAndReject() {
+        final User user = new User("Peer", 435435);
+        user.setIpAddress("192.168.5.155");
+
+        messages.sendKeyTrustAck(user);
+        verify(service).sendMessageToIp(createMessage("KEYTRUSTACK"), "192.168.5.155");
+
+        messages.sendKeyReject(user);
+        verify(service).sendMessageToIp(createMessage("KEYREJECT"), "192.168.5.155");
+    }
+
+    /**
+     * Tests sendEncryptedPrivateMessage(): target code + color + ciphertext over unicast UDP.
+     */
+    @Test
+    public void testSendEncryptedPrivateMessage() {
+        final int userCode = 435435;
+        final User user = new User("Peer", userCode);
+        user.setIpAddress("192.168.5.155");
+
+        messages.sendEncryptedPrivateMessage(user, "CIPHER", settings.getOwnColor());
+        final String expected = createMessage("ENCPRIVMSG") +
+                "(" + userCode + ")" +
+                "[" + settings.getOwnColor() + "]" +
+                "CIPHER";
+        verify(service).sendMessageToIp(expected, "192.168.5.155");
+    }
+
+    /**
+     * Tests sendEncryptedChatMessage(): sent over both unicast UDP and TCP to the peer.
+     */
+    @Test
+    public void testSendEncryptedChatMessage() {
+        when(service.sendChatMessageToIp(anyString(), anyString())).thenReturn(true);
+
+        final User user = new User("Peer", 435435);
+        user.setIpAddress("192.168.5.155");
+        messages.sendEncryptedChatMessage(user, "CIPHER");
+        verify(service).sendMessageToIp(createMessage("ENCMSG") + "CIPHER", "192.168.5.155");
+        verify(service).sendMessageToUserViaTcp(createMessage("ENCMSG") + "CIPHER", user);
+    }
+
+    /**
      * Creates the standard part for most of the message types.
      *
      * @param type The message type.

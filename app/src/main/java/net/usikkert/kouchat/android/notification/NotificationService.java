@@ -64,6 +64,7 @@ public class NotificationService {
     private final ServiceNotificationService serviceNotificationService;
     private final FileTransferNotificationService fileTransferNotificationService;
     private final MessageNotificationService messageNotificationService;
+    private final TrustKeyNotificationService trustKeyNotificationService;
 
     /**
      * Constructor.
@@ -80,6 +81,7 @@ public class NotificationService {
         serviceNotificationService = new ServiceNotificationService(context);
         fileTransferNotificationService = new FileTransferNotificationService(context, notificationManager, settings);
         messageNotificationService = new MessageNotificationService(context, notificationManager, settings);
+        trustKeyNotificationService = new TrustKeyNotificationService(context, notificationManager, settings);
     }
 
     /**
@@ -153,6 +155,28 @@ public class NotificationService {
      */
     public boolean isPrivateChatActivity() {
         return messageNotificationService.isPrivateChatActivity();
+    }
+
+    /**
+     * Notifies the user that a peer wants to establish an encrypted connection.
+     *
+     * <p>Used as the fallback when the app is backgrounded and the trust dialog
+     * activity can't be started directly. Tapping the notification opens the dialog.</p>
+     *
+     * @param peer The peer requesting the encrypted connection.
+     * @param fingerprint The peer's key fingerprint.
+     */
+    public void notifyTrustRequested(final User peer, final String fingerprint) {
+        trustKeyNotificationService.notifyTrustRequested(peer, fingerprint);
+    }
+
+    /**
+     * Removes the trust notification for a peer.
+     *
+     * @param userCode The user code of the peer.
+     */
+    public void cancelTrustNotification(final int userCode) {
+        trustKeyNotificationService.cancelTrustNotification(userCode);
     }
 
     /**

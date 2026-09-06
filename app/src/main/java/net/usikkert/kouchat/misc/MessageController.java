@@ -110,6 +110,34 @@ public class MessageController {
     }
 
     /**
+     * Shows an image in the chat, preceded by a label with the time and the
+     * nick of the sender.
+     *
+     * <p>If a private chat window is open with the given chat peer, the image
+     * is shown there. Otherwise it is shown in the main chat.</p>
+     *
+     * @param chatPeer The user the image exchange is with. Used to decide
+     *                 whether to route the image to a private chat window.
+     * @param senderNick The nick of the sender of the image.
+     * @param imageBytes The raw bytes of the image to show.
+     */
+    public void showImageMessage(final User chatPeer, final String senderNick, final byte[] imageBytes) {
+        final String label = Tools.getTime() + " <" + senderNick + ">: ";
+
+        if (chatPeer.getPrivchat() != null) {
+            chatPeer.getPrivchat().appendImage(imageBytes, label, settings.getSysColor());
+            final ChatLogger privateChatLogger = chatPeer.getPrivateChatLogger();
+
+            if (privateChatLogger != null) {
+                privateChatLogger.append(label + "[image]");
+            }
+        } else {
+            chat.appendImage(imageBytes, label, settings.getSysColor());
+            cLog.append(label + "[image]");
+        }
+    }
+
+    /**
      * This is a private message from another user.
      * The result will look like this:<br />
      * [hour:min:sec] &lt;user&gt; privmsg<br />
@@ -126,7 +154,11 @@ public class MessageController {
 
         final String msg = Tools.getTime() + " <" + user + ">: " + privmsg;
         user.getPrivchat().appendToPrivateChat(msg, color);
-        user.getPrivateChatLogger().append(msg);
+        final ChatLogger privateChatLogger = user.getPrivateChatLogger();
+
+        if (privateChatLogger != null) {
+            privateChatLogger.append(msg);
+        }
     }
 
     /**
@@ -145,7 +177,11 @@ public class MessageController {
 
         final String msg = Tools.getTime() + " <" + me.getNick() + ">: " + privmsg;
         user.getPrivchat().appendToPrivateChat(msg, settings.getOwnColor());
-        user.getPrivateChatLogger().append(msg);
+        final ChatLogger privateChatLogger = user.getPrivateChatLogger();
+
+        if (privateChatLogger != null) {
+            privateChatLogger.append(msg);
+        }
     }
 
     /**
@@ -159,8 +195,24 @@ public class MessageController {
      */
     public void showPrivateSystemMessage(final User user, final String privmsg) {
         final String msg = Tools.getTime() + " *** " + privmsg;
-        user.getPrivchat().appendToPrivateChat(msg, settings.getSysColor());
-        user.getPrivateChatLogger().append(msg);
+        final net.usikkert.kouchat.ui.PrivateChatWindow privchat = user.getPrivchat();
+
+        if (privchat != null) {
+            privchat.appendToPrivateChat(msg, settings.getSysColor());
+
+            final ChatLogger privateChatLogger = user.getPrivateChatLogger();
+
+            if (privateChatLogger != null) {
+                privateChatLogger.append(msg);
+            }
+        }
+
+        else {
+            // No private chat window is open (e.g. the handshake completed via auto-mesh in
+            // P2P mode). Fall back to the main chat so the status message is not lost.
+            chat.appendToChat(msg, settings.getSysColor());
+            cLog.append(msg);
+        }
     }
 
     /**

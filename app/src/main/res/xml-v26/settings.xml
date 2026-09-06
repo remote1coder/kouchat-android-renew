@@ -33,6 +33,24 @@
       android:title="@string/settings_wake_lock_title"
       android:summary="@string/settings_wake_lock_summary"/>
 
+  <ListPreference
+      android:key="@string/settings_network_interface_key"
+      android:title="@string/settings_network_interface_title"
+      android:summary="@string/settings_network_interface_summary"
+      android:dialogTitle="@string/settings_network_interface_dialog_title"
+      android:defaultValue=""
+      android:negativeButtonText="@string/cancel"/>
+
+  <ListPreference
+      android:key="@string/settings_network_mode_key"
+      android:title="@string/settings_network_mode_title"
+      android:summary="@string/settings_network_mode_summary"
+      android:dialogTitle="@string/settings_network_mode_dialog_title"
+      android:entries="@array/network_mode_entries"
+      android:entryValues="@array/network_mode_values"
+      android:defaultValue="multicast"
+      android:negativeButtonText="@string/cancel"/>
+
   <Preference
       android:title="@string/settings_notification_open_external_title"
       android:summary="@string/settings_notification_open_external_summary">

@@ -93,7 +93,7 @@ public class AsyncMessageResponderWrapperTest {
         wrapper.messageArrived(100, "msg", 200);
 
         verify(messageResponder).messageArrived(100, "msg", 200);
-        verifyZeroInteractions(executorService);
+        verifyNoInteractions(executorService);
         verify(wrapper, never()).askUserToIdentify(anyInt());
         verify(wrapper, never()).waitForUserToIdentify(anyInt());
     }
@@ -115,7 +115,7 @@ public class AsyncMessageResponderWrapperTest {
 
         final ArgumentCaptor<Runnable> runnableCaptor = ArgumentCaptor.forClass(Runnable.class);
 
-        verifyZeroInteractions(messageResponder);
+        verifyNoInteractions(messageResponder);
         verify(wrapper, never()).waitForUserToIdentify(anyInt());
 
         verify(executorService).execute(runnableCaptor.capture());
@@ -233,9 +233,18 @@ public class AsyncMessageResponderWrapperTest {
 
     @Test
     public void exposeRequestedShouldPassThrough() {
-        wrapper.exposeRequested();
+        wrapper.exposeRequested("192.168.1.100");
 
-        verify(messageResponder).exposeRequested();
+        verify(messageResponder).exposeRequested("192.168.1.100");
+    }
+
+    @Test
+    public void p2pConnectShouldPassThrough() {
+        final User user = new User("User", 123);
+
+        wrapper.p2pConnect(user, "192.168.1.100");
+
+        verify(messageResponder).p2pConnect(user, "192.168.1.100");
     }
 
     @Test
@@ -254,22 +263,16 @@ public class AsyncMessageResponderWrapperTest {
 
     @Test
     public void userIdleShouldPassThroughIfExistingUser() {
-        when(controller.isNewUser(100)).thenReturn(false);
+        wrapper.userIdle(100, "nick", "ipAddress");
 
-        wrapper.userIdle(100, "ipAddress");
-
-        verify(wrapper, never()).askUserToIdentify(anyInt());
-        verify(messageResponder).userIdle(100, "ipAddress");
+        verify(messageResponder).userIdle(100, "nick", "ipAddress");
     }
 
     @Test
-    public void userIdleShouldAskUserToIdentifyIfNewUser() {
-        when(controller.isNewUser(100)).thenReturn(true);
+    public void userIdleShouldPassThroughEvenIfNewUser() {
+        wrapper.userIdle(100, "nick", "ipAddress");
 
-        wrapper.userIdle(100, "ipAddress");
-
-        verify(wrapper).askUserToIdentify(100);
-        verify(messageResponder, never()).userIdle(anyInt(), anyString());
+        verify(messageResponder).userIdle(100, "nick", "ipAddress");
     }
 
     @Test
@@ -296,7 +299,7 @@ public class AsyncMessageResponderWrapperTest {
 
         final ArgumentCaptor<Runnable> runnableCaptor = ArgumentCaptor.forClass(Runnable.class);
 
-        verifyZeroInteractions(messageResponder);
+        verifyNoInteractions(messageResponder);
         verify(wrapper, never()).waitForUserToIdentify(anyInt());
 
         verify(executorService).execute(runnableCaptor.capture());
@@ -319,7 +322,7 @@ public class AsyncMessageResponderWrapperTest {
 
         final ArgumentCaptor<Runnable> runnableCaptor = ArgumentCaptor.forClass(Runnable.class);
 
-        verifyZeroInteractions(messageResponder);
+        verifyNoInteractions(messageResponder);
 
         verify(executorService).execute(runnableCaptor.capture());
         runnableCaptor.getValue().run();
@@ -371,7 +374,7 @@ public class AsyncMessageResponderWrapperTest {
 
         wrapper.waitForUserToIdentify(100);
 
-        verifyZeroInteractions(sleeper);
+        verifyNoInteractions(sleeper);
         verify(waitingList).isWaitingUser(100);
     }
 }

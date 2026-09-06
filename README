@@ -9,6 +9,26 @@ Requirements: Android v4.1 or newer.
 Enjoy :)
 
 
+## What's new in this fork
+
+This fork extends KouChat Android v1.5.0 with the following features (details in `changes.md`):
+
+- **End-to-end encryption**: private chats are encrypted with RSA-4096 key exchange
+  and AES-256-GCM session keys once you trust the peer's key fingerprint. A
+  notification is shown when a peer's key needs a trust decision.
+- **Selectable network mode** (Settings -> Network mode): **Multicast** (default),
+  **Broadcast** (subnet broadcast), **Unicast** (plaintext point-to-point mesh), or
+  **P2P** (encrypted mesh). The current mode and connection state are shown in a
+  status bar above the chat input.
+- **Long messages**: chat and private chat messages can be up to 4 MB. Messages
+  that do not fit in a single UDP packet are automatically sent over TCP.
+- **Reliable delivery**: duplicate copies of a message are deduplicated, and TCP
+  connections are re-established automatically if the first attempt failed.
+- **Inline images**: images pasted into a chat on the desktop client are shown
+  directly in the chat.
+
+
+
 
 Copyright 2006-2019 Christian Ihle
 https://www.kouchat.net/

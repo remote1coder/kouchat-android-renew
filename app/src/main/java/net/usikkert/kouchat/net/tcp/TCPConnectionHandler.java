@@ -23,13 +23,16 @@
 package net.usikkert.kouchat.net.tcp;
 
 import java.net.Socket;
-import java.util.HashMap;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 import net.usikkert.kouchat.misc.Controller;
 import net.usikkert.kouchat.misc.User;
+import net.usikkert.kouchat.misc.UserList;
 import net.usikkert.kouchat.settings.Settings;
 import net.usikkert.kouchat.util.Logger;
 import net.usikkert.kouchat.util.Tools;
@@ -52,9 +55,9 @@ public class TCPConnectionHandler implements TCPConnectionListener, TCPReceiverL
     private final Map<User, TCPUserClient> userClients;
 
     @Nullable
-    private TCPReceiverListener listener;
+    private volatile TCPReceiverListener listener;
 
-    private boolean connected;
+    private volatile boolean connected;
 
     public TCPConnectionHandler(final Controller controller, final Settings settings) {
         Validate.notNull(controller, "Controller can not be null");
@@ -63,9 +66,11 @@ public class TCPConnectionHandler implements TCPConnectionListener, TCPReceiverL
         this.controller = controller;
         this.settings = settings;
         this.executorService = Executors.newCachedThreadPool();
-        this.userClients = new HashMap<>();
+        this.userClients = new ConcurrentHashMap<>();
 
-        new Thread(this, TCPConnectionHandler.class.getSimpleName()).start();
+        final Thread monitorThread = new Thread(this, TCPConnectionHandler.class.getSimpleName());
+        monitorThread.setDaemon(true);
+        monitorThread.start();
     }
 
     @Override
@@ -157,12 +162,18 @@ public class TCPConnectionHandler implements TCPConnectionListener, TCPReceiverL
     }
 
     private void addClient(final User user, final TCPClient client) {
-        final TCPUserClient userClient = userClients.get(user);
+        // Synchronized: incoming (socketAdded) and outgoing (userAdded) connections for the
+        // same user can be set up concurrently, and the check-then-act below would otherwise
+        // create two TCPUserClient objects for one user. The orphaned object would later
+        // clear the user's tcp-enabled flag while the live connection is still in use.
+        synchronized (userClients) {
+            final TCPUserClient userClient = userClients.get(user);
 
-        if (userClient == null) {
-            userClients.put(user, new TCPUserClient(client, user, this));
-        } else {
-            userClient.add(client);
+            if (userClient == null) {
+                userClients.put(user, new TCPUserClient(client, user, this));
+            } else {
+                userClient.add(client);
+            }
         }
     }
 
@@ -206,18 +217,60 @@ public class TCPConnectionHandler implements TCPConnectionListener, TCPReceiverL
                 continue;
             }
 
-            for (final User user : userClients.keySet()) {
-                final TCPUserClient userClient = userClients.get(user);
-                final int clientCount = userClient.getClientCount();
+            try {
+                for (final User user : userClients.keySet()) {
+                    final TCPUserClient userClient = userClients.get(user);
+                    final int clientCount = userClient.getClientCount();
 
-                if (clientCount == 0) {
-                    LOG.warning("User %s has lost all tcp connections. Trying to reconnect.", user.getNick());
-                    userAdded(user);
-                } else if (clientCount > 1) {
-                    LOG.warning("User %s has too many (%d) tcp connections. Trying to close.",
-                                user.getNick(), clientCount);
-                    userClient.disconnectAdditionalClients();
+                    if (clientCount == 0) {
+                        LOG.warning("User %s has lost all tcp connections. Trying to reconnect.", user.getNick());
+                        userAdded(user);
+                    } else if (clientCount > 1) {
+                        LOG.warning("User %s has too many (%d) tcp connections. Trying to close.",
+                                    user.getNick(), clientCount);
+                        userClient.disconnectAdditionalClients();
+                    }
                 }
+
+                reconnectUsersWithoutConnections();
+            }
+
+            catch (final RuntimeException e) {
+                // Guard the monitor loop so a single unexpected exception does not permanently
+                // kill TCP connection monitoring.
+                LOG.warning("Unexpected error in TCP connection monitor, continuing: %s", e);
+            }
+        }
+    }
+
+    /**
+     * Retries the tcp connection for online users that have no live connection.
+     *
+     * <p>The initial connection attempt in {@link #userAdded(User)} is never retried on
+     * its own, so a single failed attempt (firewall, bad timing, ...) would otherwise
+     * leave the user without tcp forever. Long messages are sent over tcp only, so a
+     * missing connection means those messages are silently lost.</p>
+     */
+    private void reconnectUsersWithoutConnections() {
+        final UserList userList = controller.getUserList();
+        final List<User> usersToConnect = new ArrayList<>();
+
+        synchronized (userList) {
+            for (int i = 0; i < userList.size(); i++) {
+                final User user = userList.get(i);
+
+                if (!user.isMe() && user.isOnline()) {
+                    usersToConnect.add(user);
+                }
+            }
+        }
+
+        for (final User user : usersToConnect) {
+            final TCPUserClient userClient = userClients.get(user);
+
+            if (userClient == null || userClient.getClientCount() == 0) {
+                LOG.fine("User %s has no tcp connection. Trying to connect.", user.getNick());
+                userAdded(user);
             }
         }
     }

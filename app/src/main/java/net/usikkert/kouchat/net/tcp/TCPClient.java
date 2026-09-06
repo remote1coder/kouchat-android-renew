@@ -27,6 +27,7 @@ import java.io.DataOutputStream;
 import java.io.IOException;
 import java.net.Socket;
 
+import net.usikkert.kouchat.Constants;
 import net.usikkert.kouchat.util.Logger;
 import net.usikkert.kouchat.util.Validate;
 
@@ -34,6 +35,12 @@ import org.jetbrains.annotations.Nullable;
 
 /**
  * Client for communicating over a tcp socket.
+ *
+ * <p>Each message is framed as a 4-byte length (number of bytes in the utf-8
+ * encoding of the message) followed by the utf-8 bytes, so messages can be
+ * far larger than the 64k limit of {@link java.io.DataOutput#writeUTF(String)}.
+ * The length is capped at {@link Constants#MESSAGE_MAX_BYTES_CHAT} to protect
+ * against corrupted frames allocating huge buffers.</p>
  *
  * @author Christian Ihle
  */
@@ -52,8 +59,8 @@ public class TCPClient implements Runnable {
     @Nullable
     private TCPClientListener clientListener;
 
-    private boolean connected;
-    private boolean disconnecting;
+    private volatile boolean connected;
+    private volatile boolean disconnecting;
 
     public TCPClient(final Socket socket) {
         Validate.notNull(socket, "Socket can not be null");
@@ -64,7 +71,7 @@ public class TCPClient implements Runnable {
     public void run() {
         try {
             while (connected && inputStream != null) {
-                final String message = inputStream.readUTF();
+                final String message = readMessage();
                 LOG.fine("Message arrived from %s: %s", getIPAddress(), message);
 
                 if (clientListener != null) {
@@ -89,7 +96,7 @@ public class TCPClient implements Runnable {
         }
 
         try {
-            outputStream.writeUTF(message);
+            writeMessage(message);
             LOG.fine("Sent message: %s", message);
         }
 
@@ -101,6 +108,44 @@ public class TCPClient implements Runnable {
                 clientListener.disconnected(this);
             }
         }
+    }
+
+    /**
+     * Writes one framed message: a 4-byte length followed by the utf-8 bytes.
+     *
+     * @param message The message to write.
+     * @throws IOException If the message could not be written, or it is too large.
+     */
+    private void writeMessage(final String message) throws IOException {
+        final byte[] bytes = message.getBytes(Constants.MESSAGE_CHARSET);
+
+        if (bytes.length > Constants.MESSAGE_MAX_BYTES_CHAT) {
+            throw new IOException("Message is " + bytes.length + " bytes, which is over the limit of "
+                    + Constants.MESSAGE_MAX_BYTES_CHAT + " bytes");
+        }
+
+        outputStream.writeInt(bytes.length);
+        outputStream.write(bytes);
+        outputStream.flush();
+    }
+
+    /**
+     * Reads one framed message: a 4-byte length followed by the utf-8 bytes.
+     *
+     * @return The message that was read.
+     * @throws IOException If the message could not be read, or the frame is invalid.
+     */
+    private String readMessage() throws IOException {
+        final int length = inputStream.readInt();
+
+        if (length < 0 || length > Constants.MESSAGE_MAX_BYTES_CHAT) {
+            throw new IOException("Invalid message length in tcp frame: " + length);
+        }
+
+        final byte[] bytes = new byte[length];
+        inputStream.readFully(bytes);
+
+        return new String(bytes, Constants.MESSAGE_CHARSET);
     }
 
     public boolean connect() {
@@ -128,8 +173,11 @@ public class TCPClient implements Runnable {
             connected = false;
             disconnecting = true;
 
-            if (clientListener != null) {
-                clientListener.disconnected(this);
+            final TCPClientListener listener = clientListener;
+            clientListener = null;
+
+            if (listener != null) {
+                listener.disconnected(this);
             }
 
             socket.close();
