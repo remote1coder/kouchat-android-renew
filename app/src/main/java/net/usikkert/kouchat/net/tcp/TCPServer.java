@@ -49,10 +49,10 @@ public class TCPServer implements Runnable {
     private final ErrorHandler errorHandler;
     private final TCPConnectionListener tcpConnectionListener;
 
-    private boolean connected;
+    private volatile boolean connected;
 
     @Nullable
-    private ServerSocket serverSocket;
+    private volatile ServerSocket serverSocket;
 
     public TCPServer(final Settings settings, final ErrorHandler errorHandler,
                      final TCPConnectionListener tcpConnectionListener) {
@@ -67,9 +67,15 @@ public class TCPServer implements Runnable {
 
     @Override
     public void run() {
-        while (connected && serverSocket != null) {
+        while (connected) {
+            final ServerSocket socket = serverSocket;
+
+            if (socket == null) {
+                break;
+            }
+
             try {
-                tcpConnectionListener.socketAdded(serverSocket.accept());
+                tcpConnectionListener.socketAdded(socket.accept());
             }
 
             // Happens when server socket is closed, or network is down
@@ -103,6 +109,7 @@ public class TCPServer implements Runnable {
 
                 // The background thread watching for connections from the network.
                 final Thread worker = new Thread(this, getClass().getSimpleName());
+                worker.setDaemon(true);
                 worker.start();
 
                 me.setTcpChatPort(port);
@@ -146,6 +153,8 @@ public class TCPServer implements Runnable {
                 LOG.severe(e.toString());
             }
         }
+
+        serverSocket = null;
 
         LOG.fine("Disconnected.");
     }

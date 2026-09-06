@@ -28,6 +28,10 @@ import net.usikkert.kouchat.Constants;
 import net.usikkert.kouchat.autocomplete.AutoCompleter;
 import net.usikkert.kouchat.autocomplete.CommandAutoCompleteList;
 import net.usikkert.kouchat.autocomplete.UserAutoCompleteList;
+import net.usikkert.kouchat.crypto.CryptoManager;
+import net.usikkert.kouchat.crypto.Identity;
+import net.usikkert.kouchat.crypto.TrustPrompt;
+import net.usikkert.kouchat.crypto.TrustedKeys;
 import net.usikkert.kouchat.event.NetworkConnectionListener;
 import net.usikkert.kouchat.jmx.JMXBeanLoader;
 import net.usikkert.kouchat.message.CoreMessages;
@@ -44,6 +48,7 @@ import net.usikkert.kouchat.net.NetworkService;
 import net.usikkert.kouchat.net.PrivateMessageParser;
 import net.usikkert.kouchat.net.PrivateMessageResponder;
 import net.usikkert.kouchat.net.TransferList;
+import net.usikkert.kouchat.settings.NetworkMode;
 import net.usikkert.kouchat.settings.Settings;
 import net.usikkert.kouchat.settings.SettingsSaver;
 import net.usikkert.kouchat.ui.UserInterface;
@@ -65,7 +70,7 @@ import org.jetbrains.annotations.Nullable;
  *
  * @author Christian Ihle
  */
-public class Controller implements NetworkConnectionListener {
+public class Controller implements NetworkConnectionListener, net.usikkert.kouchat.crypto.CryptoMessageSink {
 
     /** The time to wait after the network is up before logon is set as completed. */
     private static final int LOGON_DELAY = 1500;
@@ -89,6 +94,19 @@ public class Controller implements NetworkConnectionListener {
     private final Thread shutdownHook;
     private final CoreMessages coreMessages;
     private final ErrorHandler errorHandler;
+
+    /** The local RSA identity for end-to-end encryption. */
+    private final Identity identity;
+
+    /** Persisted trusted peer keys. */
+    private final TrustedKeys trustedKeys;
+
+    /** Orchestrates the encrypted handshake and per-peer channels. */
+    private final CryptoManager cryptoManager;
+
+    /** User codes for which the "not encrypted" notice has already been shown once. */
+    private final java.util.Set<Integer> plaintextNoticed =
+            java.util.concurrent.ConcurrentHashMap.newKeySet();
 
     /**
      * Constructor. Initializes the controller.
@@ -118,8 +136,13 @@ public class Controller implements NetworkConnectionListener {
         shutdownHook = new Thread("ControllerShutdownHook") {
             @Override
             public void run() {
-                logOff(false);
-                doShutdown();
+                try {
+                    logOff(false);
+                }
+
+                finally {
+                    doShutdown();
+                }
             }
         };
 
@@ -142,7 +165,24 @@ public class Controller implements NetworkConnectionListener {
         networkService.registerPrivateChatReceiverListener(privmsgParser);
         networkMessages = new NetworkMessages(networkService, settings);
         networkService.registerNetworkConnectionListener(this);
+
+        identity = new Identity();
+        trustedKeys = new TrustedKeys();
+        cryptoManager = new CryptoManager(identity, trustedKeys, this);
+        cryptoManager.setLocalCode(me.getCode());
+
         msgController = ui.getMessageController();
+
+        cryptoManager.setStatusListener(new net.usikkert.kouchat.crypto.CryptoStatusListener() {
+            @Override
+            public void peerUnsupported(final User peer) {
+                // Runs on the crypto timeout thread. Inform the user that this peer is
+                // not encrypted, so they never assume encryption is active when it isn't.
+                plaintextNoticed.add(peer.getCode());
+                msgController.showSystemMessage(coreMessages.getMessage(
+                        "core.crypto.systemMessage.peerUnsupported", peer.getNick()));
+            }
+        });
     }
 
     /**
@@ -272,7 +312,7 @@ public class Controller implements NetworkConnectionListener {
     public void changeAwayStatus(final int code, final boolean away, final String awaymsg) throws CommandException {
         if (code == me.getCode() && !isLoggedOn()) {
             throw new CommandException(coreMessages.getMessage("core.away.error.notConnected"));
-        } else if (Tools.getBytes(awaymsg) > Constants.MESSAGE_MAX_BYTES) {
+        } else if (code == me.getCode() && Tools.getBytes(awaymsg) > Constants.MESSAGE_MAX_BYTES) {
             throw new CommandException(coreMessages.getMessage("core.away.error.awayMessageTooLong",
                                                                Constants.MESSAGE_MAX_BYTES));
         }
@@ -522,10 +562,51 @@ public class Controller implements NetworkConnectionListener {
     }
 
     /**
+     * Sends an expose message to a specific ip address, to connect to a client
+     * that may not be on the same multicast network.
+     *
+     * @param ipAddress The ip address to connect to.
+     */
+    public void connectToIp(final String ipAddress) {
+        networkService.addP2pPeer(ipAddress);
+        networkMessages.sendExposeToIp(ipAddress);
+        networkMessages.sendP2pConnect(ipAddress);
+        msgController.showSystemMessage("Connecting to " + ipAddress + " (point-to-point)...");
+    }
+
+    /**
+     * Registers a peer for direct point-to-point (unicast) communication,
+     * so subsequent messages bypass multicast.
+     *
+     * @param ipAddress The ip address of the peer.
+     */
+    public void addP2pPeer(final String ipAddress) {
+        networkService.addP2pPeer(ipAddress);
+    }
+
+    /**
+     * Removes a peer from direct point-to-point communication.
+     *
+     * @param ipAddress The ip address of the peer.
+     */
+    public void removeP2pPeer(final String ipAddress) {
+        networkService.removeP2pPeer(ipAddress);
+    }
+
+    /**
      * Sends a message over the network to identify this client.
      */
     public void sendExposingMessage() {
         networkMessages.sendExposingMessage();
+    }
+
+    /**
+     * Sends an exposing message to a specific ip address, responding to a manual ip expose request.
+     *
+     * @param ipAddress The ip address to send the exposing message to.
+     */
+    public void sendExposingToIp(final String ipAddress) {
+        networkMessages.sendExposingToIp(ipAddress);
     }
 
     /**
@@ -561,11 +642,93 @@ public class Controller implements NetworkConnectionListener {
             throw new CommandException(coreMessages.getMessage("core.chatMessage.error.meIsAway"));
         } else if (msg.trim().length() == 0) {
             throw new CommandException(coreMessages.getMessage("core.chatMessage.error.emptyMessage"));
-        } else if (Tools.getBytes(msg) > Constants.MESSAGE_MAX_BYTES) {
+        } else if (Tools.getBytes(msg) > Constants.MESSAGE_MAX_BYTES_CHAT) {
             throw new CommandException(coreMessages.getMessage("core.chatMessage.error.messageTooLong",
-                                                               Constants.MESSAGE_MAX_BYTES));
+                                                               Constants.MESSAGE_MAX_BYTES_CHAT));
+        } else if (isP2pMode()) {
+            // P2P mode: group chat is NOT broadcast. Send encrypted to each trusted peer.
+            sendEncryptedChatMessageToPeers(msg);
+        } else if (isUnicastMode()) {
+            // Unicast mode: group chat is NOT broadcast. Send unencrypted to each online peer.
+            sendChatMessageToPeers(msg);
         } else {
             networkMessages.sendChatMessage(msg);
+        }
+    }
+
+    /**
+     * Sends an unencrypted group chat message to every online peer, one unicast
+     * per peer. Used in UNICAST mode, where group chat must not be multicast.
+     *
+     * <p>Messages that fit in a udp packet are sent over udp unicast; longer
+     * messages go over the tcp connection to each peer instead.</p>
+     *
+     * @param msg The message to send.
+     * @throws CommandException If no peer is online.
+     */
+    private void sendChatMessageToPeers(final String msg) throws CommandException {
+        final UserList userList = getUserList();
+        final boolean fitsUdp = Tools.getBytes(msg) <= Constants.MESSAGE_MAX_BYTES;
+        boolean sent = false;
+
+        synchronized (userList) {
+            for (int i = 0; i < userList.size(); i++) {
+                final User user = userList.get(i);
+
+                if (user.isMe() || !user.isOnline()) {
+                    continue;
+                }
+
+                if (fitsUdp) {
+                    if (networkService.sendChatMessageToIp(msg, user.getIpAddress())) {
+                        sent = true;
+                    }
+                }
+
+                else {
+                    networkService.sendMessageToUserViaTcp(msg, user);
+                    sent = true;
+                }
+            }
+        }
+
+        if (!sent) {
+            throw new CommandException(coreMessages.getMessage("core.chatMessage.error.noOnlinePeers"));
+        }
+    }
+
+    /**
+     * Sends an encrypted group chat message to every peer with an active channel.
+     * Used in P2P mode, where group chat must not be multicast.
+     *
+     * @param msg The message to send.
+     * @throws CommandException If no encrypted peer is connected yet.
+     */
+    private void sendEncryptedChatMessageToPeers(final String msg) throws CommandException {
+        final UserList userList = getUserList();
+        boolean sent = false;
+
+        synchronized (userList) {
+            for (int i = 0; i < userList.size(); i++) {
+                final User user = userList.get(i);
+
+                if (user.isMe() || !user.isOnline()) {
+                    continue;
+                }
+
+                if (cryptoManager.isChannelActive(user)) {
+                    final String cipher = cryptoManager.encryptForPeer(user, msg);
+
+                    if (cipher != null) {
+                        networkMessages.sendEncryptedChatMessage(user, cipher);
+                        sent = true;
+                    }
+                }
+            }
+        }
+
+        if (!sent) {
+            throw new CommandException(coreMessages.getMessage("core.crypto.systemMessage.noEncryptedPeers"));
         }
     }
 
@@ -708,6 +871,17 @@ public class Controller implements NetworkConnectionListener {
     }
 
     /**
+     * Sends the client information to a specific ip address over unicast, in response to
+     * an expose request from that address. Lets the peer learn our private chat port
+     * reliably even if the multicast CLIENT message was lost.
+     *
+     * @param ipAddress The ip address to send the client info to.
+     */
+    public void sendClientToIp(final String ipAddress) {
+        networkMessages.sendClientToIp(ipAddress);
+    }
+
+    /**
      * Sends a private chat message over the network, to the specified user.
      *
      * @param privmsg The private message to send.
@@ -726,19 +900,49 @@ public class Controller implements NetworkConnectionListener {
             throw new CommandException(coreMessages.getMessage("core.privateChatMessage.error.meIsAway"));
         } else if (privmsg.trim().length() == 0) {
             throw new CommandException(coreMessages.getMessage("core.privateChatMessage.error.emptyMessage"));
-        } else if (Tools.getBytes(privmsg) > Constants.MESSAGE_MAX_BYTES) {
+        } else if (Tools.getBytes(privmsg) > Constants.MESSAGE_MAX_BYTES_CHAT) {
             throw new CommandException(coreMessages.getMessage("core.privateChatMessage.error.messageTooLong",
-                                                               Constants.MESSAGE_MAX_BYTES));
-        } else if (user.getPrivateChatPort() == 0) {
-            throw new CommandException(coreMessages.getMessage("core.privateChatMessage.error.noPortNumber"));
+                                                               Constants.MESSAGE_MAX_BYTES_CHAT));
         } else if (user.isAway()) {
             throw new CommandException(coreMessages.getMessage("core.privateChatMessage.error.userIsAway"));
         } else if (!user.isOnline()) {
             throw new CommandException(coreMessages.getMessage("core.privateChatMessage.error.userIsOffline"));
         } else if (settings.isNoPrivateChat()) {
             throw new CommandException(coreMessages.getMessage("core.privateChatMessage.error.privateChatDisabled"));
-        } else {
+        } else if (cryptoManager.isChannelActive(user)) {
+            // Encrypted channel active: send the message encrypted over the direct channel.
+            // Note: this path unicasts to the peer's main chat port, so the peer's UDP
+            // private-chat port is NOT needed - a missed CLIENT message must not block
+            // encrypted private chat.
+            final String cipher = cryptoManager.encryptForPeer(user, privmsg);
+
+            if (cipher != null) {
+                networkMessages.sendEncryptedPrivateMessage(user, cipher, settings.getOwnColor());
+            }
+        } else if (cryptoManager.isUnsupported(user) || !cryptoManager.hasTrustPrompt()) {
+            // Peer does not speak crypto, or no UI to ask for trust (e.g. console): plaintext.
+            // This path needs the peer's UDP private-chat port (from its CLIENT message,
+            // which can be lost over WiFi multicast). If unknown, ask the peer to re-send
+            // its client info over unicast so the next attempt works.
+            if (user.getPrivateChatPort() == 0) {
+                networkMessages.sendExposeToIp(user.getIpAddress());
+                throw new CommandException(coreMessages.getMessage("core.privateChatMessage.error.noPortNumber"));
+            }
+
+            // Warn the user once that this conversation is NOT encrypted, so they don't
+            // mistakenly believe encryption is active.
+            if (plaintextNoticed.add(user.getCode())) {
+                msgController.showSystemMessage(coreMessages.getMessage(
+                        "core.crypto.systemMessage.plaintextFallback", user.getNick()));
+            }
             networkMessages.sendPrivateMessage(privmsg, user);
+        } else if (cryptoManager.isRejected(user)) {
+            // Trust was declined: encrypted chat is not available with this peer.
+            throw new CommandException(coreMessages.getMessage("core.crypto.systemMessage.keyDeclined", user.getNick()));
+        } else {
+            // Not established yet: start the handshake and ask the user to wait.
+            cryptoManager.initiateHandshake(user);
+            throw new CommandException(coreMessages.getMessage("core.crypto.systemMessage.waitingForKey", user.getNick()));
         }
     }
 
@@ -867,5 +1071,285 @@ public class Controller implements NetworkConnectionListener {
 
     public void registerNetworkConnectionListener(final NetworkConnectionListener listener) {
         networkService.registerNetworkConnectionListener(listener);
+    }
+
+    // ----- End-to-end encryption -----
+
+    /**
+     * Sets the UI callback used to ask the user about trusting a peer's key.
+     *
+     * @param trustPrompt The trust prompt callback.
+     */
+    public void setTrustPrompt(final TrustPrompt trustPrompt) {
+        cryptoManager.setTrustPrompt(trustPrompt);
+    }
+
+    /**
+     * Returns the crypto manager (for tests and JMX).
+     *
+     * @return The crypto manager.
+     */
+    public CryptoManager getCryptoManager() {
+        return cryptoManager;
+    }
+
+    /**
+     * Whether the client is in P2P (encrypted mesh) mode.
+     *
+     * @return True if P2P mode.
+     */
+    public boolean isP2pMode() {
+        return settings.getNetworkMode() == NetworkMode.P2P;
+    }
+
+    /**
+     * Whether the client is in UNICAST (unencrypted mesh) mode.
+     *
+     * @return True if unicast mode.
+     */
+    public boolean isUnicastMode() {
+        return settings.getNetworkMode() == NetworkMode.UNICAST;
+    }
+
+    /**
+     * Whether the client uses a unicast mesh (P2P or UNICAST mode), where group
+     * chat is sent point-to-point to each peer instead of multicast/broadcast.
+     *
+     * @return True if a mesh mode is active.
+     */
+    public boolean isMeshMode() {
+        return isP2pMode() || isUnicastMode();
+    }
+
+    /**
+     * Gets the current network mode.
+     *
+     * @return The network mode.
+     */
+    public NetworkMode getNetworkMode() {
+        return settings.getNetworkMode();
+    }
+
+    /**
+     * Switches the network mode and persists it. In the mesh modes (P2P and
+     * UNICAST), attempts to mesh with all currently online users.
+     *
+     * <p>Note: manually registered peers (see {@link #connectToIp(String)}) are kept
+     * when switching modes, so such connections keep working.</p>
+     *
+     * @param mode The new network mode.
+     */
+    public void setNetworkMode(final NetworkMode mode) {
+        settings.setNetworkMode(mode);
+        saveSettings();
+
+        if (isMeshMode()) {
+            final UserList userList = getUserList();
+
+            synchronized (userList) {
+                for (int i = 0; i < userList.size(); i++) {
+                    final User user = userList.get(i);
+
+                    if (!user.isMe() && user.isOnline()) {
+                        attemptP2pMesh(user);
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * Registers a peer for the unicast mesh (so discovery/control messages also reach
+     * them directly), and initiates an encrypted handshake if P2P mode is active.
+     *
+     * @param user The peer to mesh with.
+     */
+    public void attemptP2pMesh(final User user) {
+        if (user == null || user.isMe() || !user.isOnline()) {
+            return;
+        }
+
+        networkService.addP2pPeer(user.getIpAddress());
+
+        if (isP2pMode() && !cryptoManager.isChannelActive(user) && !cryptoManager.isUnsupported(user)) {
+            cryptoManager.initiateHandshake(user);
+        }
+    }
+
+    /**
+     * Starts the encrypted handshake when the user opens a private chat. If the peer
+     * turns out to be unsupported (no crypto), private messages fall back to plaintext.
+     *
+     * @param user The peer.
+     */
+    public void initiatePrivateChat(final User user) {
+        if (user == null || user.isMe()) {
+            return;
+        }
+
+        if (cryptoManager.isChannelActive(user) || cryptoManager.isUnsupported(user)
+                || cryptoManager.isRejected(user)) {
+            return;
+        }
+
+        // Only show the notice once per pending handshake, not on every chat re-open.
+        final boolean alreadyPending = cryptoManager.isHandshakePending(user);
+
+        cryptoManager.initiateHandshake(user);
+
+        // The peer's UDP private-chat port (from its CLIENT message) may be unknown if the
+        // multicast copy was lost. Ask the peer to re-send its client info over unicast now,
+        // so the plaintext fallback path also works if the peer turns out not to speak crypto.
+        if (user.getPrivateChatPort() == 0) {
+            networkMessages.sendExposeToIp(user.getIpAddress());
+        }
+
+        if (!alreadyPending) {
+            msgController.showPrivateSystemMessage(user, coreMessages.getMessage(
+                    "core.crypto.systemMessage.waitingForKey", user.getNick()));
+        }
+    }
+
+    // ----- CryptoMessageSink: delegates to NetworkMessages (TCP unicast) -----
+
+    @Override
+    public void sendPubKey(final User peer, final String publicKeyBase64) {
+        networkMessages.sendPubKey(peer, publicKeyBase64);
+    }
+
+    @Override
+    public void sendKeyReq(final User peer) {
+        networkMessages.sendKeyReq(peer);
+    }
+
+    @Override
+    public void sendKeyTrust(final User peer, final String wrappedKey, final String signature) {
+        networkMessages.sendKeyTrust(peer, wrappedKey, signature);
+    }
+
+    @Override
+    public void sendKeyTrustAck(final User peer) {
+        networkMessages.sendKeyTrustAck(peer);
+    }
+
+    @Override
+    public void sendKeyReject(final User peer) {
+        networkMessages.sendKeyReject(peer);
+    }
+
+    // ----- Responder callbacks: forward network events to the crypto manager -----
+
+    /**
+     * A peer's public key arrived. Drives the trust handshake.
+     *
+     * @param userCode The sender's code.
+     * @param publicKeyBase64 The base64 public key.
+     */
+    public void handlePubKey(final int userCode, final String publicKeyBase64) {
+        final User user = getUser(userCode);
+        if (user != null) {
+            cryptoManager.onPeerPubKey(user, publicKeyBase64);
+        }
+    }
+
+    /**
+     * A peer requested our public key.
+     *
+     * @param userCode The requester's code.
+     */
+    public void handleKeyReq(final int userCode) {
+        final User user = getUser(userCode);
+        if (user != null) {
+            cryptoManager.onKeyReq(user);
+        }
+    }
+
+    /**
+     * A peer trusts our key and carries the wrapped session key.
+     *
+     * @param userCode The sender's code.
+     * @param wrappedKey Base64 wrapped AES key.
+     * @param signature Base64 signature.
+     */
+    public void handleKeyTrust(final int userCode, final String wrappedKey, final String signature) {
+        final User user = getUser(userCode);
+        if (user != null) {
+            cryptoManager.onKeyTrust(user, wrappedKey, signature);
+
+            if (cryptoManager.isChannelActive(user)) {
+                msgController.showPrivateSystemMessage(user, coreMessages.getMessage(
+                        "core.crypto.systemMessage.channelEstablished", user.getNick()));
+            }
+        }
+    }
+
+    /**
+     * A peer acknowledged trust back.
+     *
+     * @param userCode The sender's code.
+     */
+    public void handleKeyTrustAck(final int userCode) {
+        final User user = getUser(userCode);
+        if (user != null) {
+            cryptoManager.onKeyTrustAck(user);
+
+            if (cryptoManager.isChannelActive(user)) {
+                msgController.showPrivateSystemMessage(user, coreMessages.getMessage(
+                        "core.crypto.systemMessage.channelEstablished", user.getNick()));
+            }
+        }
+    }
+
+    /**
+     * A peer declined to trust our key.
+     *
+     * @param userCode The sender's code.
+     */
+    public void handleKeyReject(final int userCode) {
+        final User user = getUser(userCode);
+        if (user != null) {
+            cryptoManager.onKeyReject(user);
+            msgController.showPrivateSystemMessage(user, coreMessages.getMessage(
+                    "core.crypto.systemMessage.keyDeclined", user.getNick()));
+        }
+    }
+
+    /**
+     * An encrypted private message arrived. Decrypts and shows it.
+     *
+     * @param userCode The sender's code.
+     * @param ciphertextBase64 The base64 ciphertext.
+     * @param color The sender's chosen color.
+     */
+    public void handleEncryptedPrivateMessage(final int userCode, final String ciphertextBase64, final int color) {
+        final User user = getUser(userCode);
+        if (user == null) {
+            return;
+        }
+
+        final String plaintext = cryptoManager.decryptFromPeer(user, ciphertextBase64);
+        if (plaintext != null) {
+            msgController.showPrivateUserMessage(user, plaintext, color);
+            ui.notifyPrivateMessageArrived(user, plaintext);
+        }
+    }
+
+    /**
+     * An encrypted group chat message arrived (P2P mode). Decrypts and shows it.
+     *
+     * @param userCode The sender's code.
+     * @param ciphertextBase64 The base64 ciphertext.
+     */
+    public void handleEncryptedChatMessage(final int userCode, final String ciphertextBase64) {
+        final User user = getUser(userCode);
+        if (user == null) {
+            return;
+        }
+
+        final String plaintext = cryptoManager.decryptFromPeer(user, ciphertextBase64);
+        if (plaintext != null) {
+            msgController.showUserMessage(user.getNick(), plaintext, settings.getOwnColor());
+            ui.notifyMessageArrived(user, plaintext);
+        }
     }
 }

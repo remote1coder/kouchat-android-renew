@@ -38,4 +38,18 @@ public interface ChatWindow {
      * @param color The color to show the text in.
      */
     void appendToChat(String message, int color);
+
+    /**
+     * Adds an image to the chat area, preceded by a text label.
+     *
+     * <p>The image is given as raw bytes (for example PNG) so that the
+     * contract stays free of desktop image types. Each user interface
+     * renders it the way it sees fit.</p>
+     *
+     * @param imageBytes The raw bytes of the image to display.
+     * @param label The text label to show before the image (for example a
+     *              time stamp and the nick of the sender).
+     * @param color The color to show the label in.
+     */
+    void appendImage(byte[] imageBytes, String label, int color);
 }

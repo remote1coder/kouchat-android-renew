@@ -42,6 +42,15 @@ public interface PrivateChatWindow {
     void appendToPrivateChat(String message, int color);
 
     /**
+     * Adds an image to the private chat area, preceded by a text label.
+     *
+     * @param imageBytes The raw bytes of the image to display.
+     * @param label The text label to show before the image.
+     * @param color The color to show the label in.
+     */
+    void appendImage(byte[] imageBytes, String label, int color);
+
+    /**
      * Gets the user this private chat is connected to.
      *
      * @return The user of this private chat.

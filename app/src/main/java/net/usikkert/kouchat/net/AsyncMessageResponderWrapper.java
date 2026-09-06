@@ -160,8 +160,13 @@ public class AsyncMessageResponderWrapper implements MessageResponder {
     }
 
     @Override
-    public void exposeRequested() {
-        messageResponder.exposeRequested();
+    public void exposeRequested(final String ipAddress) {
+        messageResponder.exposeRequested(ipAddress);
+    }
+
+    @Override
+    public void p2pConnect(final User user, final String ipAddress) {
+        messageResponder.p2pConnect(user, ipAddress);
     }
 
     @Override
@@ -178,14 +183,8 @@ public class AsyncMessageResponderWrapper implements MessageResponder {
      * User reports to be idle. Asked to identify instead, if unknown.
      */
     @Override
-    public void userIdle(final int userCode, final String ipAddress) {
-        if (controller.isNewUser(userCode)) {
-            askUserToIdentify(userCode);
-        }
-
-        else {
-            messageResponder.userIdle(userCode, ipAddress);
-        }
+    public void userIdle(final int userCode, final String nick, final String ipAddress) {
+        messageResponder.userIdle(userCode, nick, ipAddress);
     }
 
     /**
@@ -231,6 +230,41 @@ public class AsyncMessageResponderWrapper implements MessageResponder {
     public void clientInfo(final int userCode, final String client, final long timeSinceLogon,
                            final String operatingSystem, final int privateChatPort, final int tcpChatPort) {
         messageResponder.clientInfo(userCode, client, timeSinceLogon, operatingSystem, privateChatPort, tcpChatPort);
+    }
+
+    @Override
+    public void pubKeyArrived(final int userCode, final String publicKeyBase64) {
+        messageResponder.pubKeyArrived(userCode, publicKeyBase64);
+    }
+
+    @Override
+    public void keyReqArrived(final int userCode) {
+        messageResponder.keyReqArrived(userCode);
+    }
+
+    @Override
+    public void keyTrustArrived(final int userCode, final String wrappedKey, final String signature) {
+        messageResponder.keyTrustArrived(userCode, wrappedKey, signature);
+    }
+
+    @Override
+    public void keyTrustAckArrived(final int userCode) {
+        messageResponder.keyTrustAckArrived(userCode);
+    }
+
+    @Override
+    public void keyRejectArrived(final int userCode) {
+        messageResponder.keyRejectArrived(userCode);
+    }
+
+    @Override
+    public void encryptedPrivateMessageArrived(final int userCode, final String ciphertextBase64, final int color) {
+        messageResponder.encryptedPrivateMessageArrived(userCode, ciphertextBase64, color);
+    }
+
+    @Override
+    public void encryptedChatMessageArrived(final int userCode, final String ciphertextBase64) {
+        messageResponder.encryptedChatMessageArrived(userCode, ciphertextBase64);
     }
 
     /**

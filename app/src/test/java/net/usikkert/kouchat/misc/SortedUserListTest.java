@@ -191,7 +191,7 @@ public class SortedUserListTest {
     public void removeShouldNotNotifyListenersIfUserDoesNotExist() {
         userList.remove(annie);
 
-        verifyZeroInteractions(listener);
+        verifyNoInteractions(listener);
     }
 
     @Test
@@ -216,7 +216,7 @@ public class SortedUserListTest {
 
         addAllUsers();
 
-        verifyZeroInteractions(listener);
+        verifyNoInteractions(listener);
     }
 
     @Test

@@ -17,7 +17,7 @@
  *                                                                         *
  *   You should have received a copy of the GNU Lesser General Public      *
  *   License along with KouChat.                                           *
- *   If not, see <http://www.gnu.org/licenses/>.                           *
+ *   If not, see <http://www.gnu.org/licenses/lgpl-3.0.txt>.               *
  ***************************************************************************/
 
 package net.usikkert.kouchat.android.controller;
@@ -29,6 +29,9 @@ import net.usikkert.kouchat.android.component.HoloColorPickerPreferenceDialog;
 import net.usikkert.kouchat.android.service.ChatService;
 import net.usikkert.kouchat.android.service.ChatServiceBinder;
 import net.usikkert.kouchat.android.settings.AndroidSettings;
+import net.usikkert.kouchat.net.NetworkInterfaceInfo;
+import net.usikkert.kouchat.net.NetworkUtils;
+import net.usikkert.kouchat.settings.NetworkMode;
 
 import android.content.ComponentName;
 import android.content.Context;
@@ -37,11 +40,15 @@ import android.content.ServiceConnection;
 import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.os.IBinder;
-import android.support.v4.app.DialogFragment;
-import android.support.v7.preference.EditTextPreference;
-import android.support.v7.preference.Preference;
-import android.support.v7.preference.PreferenceFragmentCompat;
-import android.support.v7.preference.TwoStatePreference;
+import androidx.fragment.app.DialogFragment;
+import androidx.preference.EditTextPreference;
+import androidx.preference.ListPreference;
+import androidx.preference.Preference;
+import androidx.preference.PreferenceFragmentCompat;
+import androidx.preference.TwoStatePreference;
+
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Fragment for changing the settings.
@@ -63,6 +70,8 @@ public class SettingsFragment extends PreferenceFragmentCompat
     private String wakeLockKey;
     private String ownColorKey;
     private String systemColorKey;
+    private String networkInterfaceKey;
+    private String networkModeKey;
 
     private String notificationLightKey;
     private String notificationSoundKey;
@@ -85,6 +94,8 @@ public class SettingsFragment extends PreferenceFragmentCompat
         wakeLockKey = getString(R.string.settings_wake_lock_key);
         ownColorKey = getString(R.string.settings_own_color_key);
         systemColorKey = getString(R.string.settings_sys_color_key);
+        networkInterfaceKey = getString(R.string.settings_network_interface_key);
+        networkModeKey = getString(R.string.settings_network_mode_key);
 
         notificationLightKey = getString(R.string.settings_notification_light_key);
         notificationSoundKey = getString(R.string.settings_notification_sound_key);
@@ -93,6 +104,19 @@ public class SettingsFragment extends PreferenceFragmentCompat
         final Preference nickNamePreference = findPreference(nickNameKey);
         nickNamePreference.setOnPreferenceChangeListener(this);
         setValueAsSummary(nickNamePreference);
+
+        final ListPreference networkInterfacePreference = findPreference(networkInterfaceKey);
+
+        if (networkInterfacePreference != null) {
+            populateNetworkInterfaces(networkInterfacePreference);
+            updateNetworkInterfaceSummary(networkInterfacePreference);
+        }
+
+        final ListPreference networkModePreference = findPreference(networkModeKey);
+
+        if (networkModePreference != null) {
+            updateNetworkModeSummary(networkModePreference);
+        }
     }
 
     /**
@@ -117,6 +141,7 @@ public class SettingsFragment extends PreferenceFragmentCompat
      *   <li>Changed wake lock: stores the setting in the {@link AndroidSettings}.</li>
      *   <li>Changed own color: stores the setting in the {@link AndroidSettings}.</li>
      *   <li>Changed system color: stores the setting in the {@link AndroidSettings}.</li>
+     *   <li>Changed network interface: stores the setting in the {@link AndroidSettings}.</li>
      *   <li>Changed notification light: stores the setting in the {@link AndroidSettings}.</li>
      *   <li>Changed notification sound: stores the setting in the {@link AndroidSettings}.</li>
      *   <li>Changed notification vibration: stores the setting in the {@link AndroidSettings}.</li>
@@ -143,6 +168,27 @@ public class SettingsFragment extends PreferenceFragmentCompat
         else if (key.equals(systemColorKey)) {
             final HoloColorPickerPreference preference = (HoloColorPickerPreference) findPreference(key);
             settings.setSysColor(preference.getPersistedColor());
+        }
+
+        else if (key.equals(networkInterfaceKey)) {
+            final ListPreference preference = (ListPreference) findPreference(key);
+            updateNetworkInterfaceSummary(preference);
+
+            if (settings != null) {
+                final String value = preference.getValue();
+                settings.setNetworkInterface(value != null && !value.isEmpty() ? value : null);
+            }
+        }
+
+        else if (key.equals(networkModeKey)) {
+            final ListPreference preference = (ListPreference) findPreference(key);
+            updateNetworkModeSummary(preference);
+
+            if (settings != null && androidUserInterface != null) {
+                final NetworkMode mode = NetworkMode.fromKey(preference.getValue());
+                settings.setNetworkMode(mode);
+                androidUserInterface.setNetworkMode(mode);
+            }
         }
 
         else if (key.equals(notificationLightKey)) {
@@ -228,6 +274,95 @@ public class SettingsFragment extends PreferenceFragmentCompat
 
         if (editTextPreference.getText() != null) {
             preference.setSummary(editTextPreference.getText());
+        }
+    }
+
+    /**
+     * Populates the network interface preference with the usable network interfaces,
+     * including an Auto option for automatic detection.
+     *
+     * @param preference The network interface preference.
+     */
+    private void populateNetworkInterfaces(final ListPreference preference) {
+        try {
+            final NetworkUtils networkUtils = new NetworkUtils();
+            final List<NetworkInterfaceInfo> usableNetworkInterfaces = networkUtils.getUsableNetworkInterfaces();
+
+            final List<String> entries = new ArrayList<>();
+            final List<String> entryValues = new ArrayList<>();
+
+            entries.add(getString(R.string.settings_network_interface_auto));
+            entryValues.add("");
+
+            for (final NetworkInterfaceInfo usableNetworkInterface : usableNetworkInterfaces) {
+                entries.add(usableNetworkInterface.getName() + " - " + networkUtils.getIPv4Addresses(usableNetworkInterface));
+                entryValues.add(usableNetworkInterface.getName());
+            }
+
+            preference.setEntries(entries.toArray(new String[0]));
+            preference.setEntryValues(entryValues.toArray(new String[0]));
+        }
+
+        catch (final Exception e) {
+            android.util.Log.e("KouChat", "Could not populate network interfaces", e);
+        }
+    }
+
+    /**
+     * Updates the summary of the network interface preference to show the current selection.
+     *
+     * @param preference The network interface preference.
+     */
+    private void updateNetworkInterfaceSummary(final ListPreference preference) {
+        final CharSequence entry = preference.getEntry();
+
+        if (entry != null) {
+            preference.setSummary(entry);
+        }
+
+        else {
+            preference.setSummary(getString(R.string.settings_network_interface_auto));
+        }
+    }
+
+    /**
+     * Updates the summary of the network mode preference to show the current selection.
+     *
+     * <p>Values stored by older versions (like the legacy "broadcast", which meant
+     * multicast) have no matching entry in the list, so the label is derived from
+     * the parsed {@link NetworkMode} instead.</p>
+     *
+     * @param preference The network mode preference.
+     */
+    private void updateNetworkModeSummary(final ListPreference preference) {
+        CharSequence entry = preference.getEntry();
+
+        if (entry == null) {
+            entry = getNetworkModeLabel(NetworkMode.fromKey(preference.getValue()));
+        }
+
+        preference.setSummary(entry != null ? entry : getString(R.string.settings_network_mode_multicast));
+    }
+
+    /**
+     * Finds the localized label of a network mode.
+     *
+     * @param networkMode The network mode.
+     * @return The localized label.
+     */
+    private CharSequence getNetworkModeLabel(final NetworkMode networkMode) {
+        switch (networkMode) {
+            case P2P:
+                return getString(R.string.settings_network_mode_p2p);
+
+            case UNICAST:
+                return getString(R.string.settings_network_mode_unicast);
+
+            case BROADCAST:
+                return getString(R.string.settings_network_mode_broadcast);
+
+            default:
+                return getString(R.string.settings_network_mode_multicast);
         }
     }
 

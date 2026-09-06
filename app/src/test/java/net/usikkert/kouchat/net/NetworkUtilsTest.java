@@ -108,4 +108,18 @@ public class NetworkUtilsTest {
         final NetworkInterface eth0 = networkUtils.getNetworkInterfaceByName("eth0");
         System.out.println(networkUtils.getNetworkInterfaceInfo(eth0));
     }
+
+    /**
+     * Tests that the internet-facing network interface can be detected without errors,
+     * and that it is usable when found.
+     */
+    @Test
+    public void findInternetFacingNetworkInterface() {
+        final NetworkInterface networkInterface = networkUtils.findInternetFacingNetworkInterface();
+
+        if (networkInterface != null) {
+            assertTrue(networkUtils.isUsable(networkInterface));
+            System.out.println("Internet-facing interface: " + networkUtils.getNetworkInterfaceInfo(networkInterface));
+        }
+    }
 }

@@ -22,12 +22,16 @@
 
 package net.usikkert.kouchat.android.filetransfer;
 
+import java.io.File;
+
 import net.usikkert.kouchat.android.R;
 import net.usikkert.kouchat.android.notification.NotificationService;
 import net.usikkert.kouchat.event.FileTransferListener;
 import net.usikkert.kouchat.misc.MessageController;
+import net.usikkert.kouchat.misc.User;
 import net.usikkert.kouchat.net.FileReceiver;
 import net.usikkert.kouchat.net.FileTransfer;
+import net.usikkert.kouchat.util.ImageFileUtils;
 import net.usikkert.kouchat.util.Validate;
 
 import android.content.Context;
@@ -144,8 +148,24 @@ public class AndroidFileTransferListener implements FileTransferListener {
 
         if (fileTransfer.getDirection() == FileTransfer.Direction.RECEIVE) {
             final FileReceiver fileReceiver = (FileReceiver) fileTransfer;
+            final File savedFile = fileReceiver.getFile();
 
-            androidFileUtils.addFileToMediaDatabase(context, fileReceiver.getFile());
+            androidFileUtils.addFileToMediaDatabase(context, savedFile);
+
+            showReceivedImageInlineIfApplicable(fileReceiver, savedFile);
+        }
+    }
+
+    private void showReceivedImageInlineIfApplicable(final FileReceiver fileReceiver, final File savedFile) {
+        if (savedFile == null || !ImageFileUtils.isImageFileName(savedFile.getName())) {
+            return;
+        }
+
+        final byte[] imageBytes = androidFileUtils.readBytes(savedFile);
+
+        if (imageBytes != null) {
+            final User sender = fileReceiver.getUser();
+            messageController.showImageMessage(sender, sender.getNick(), imageBytes);
         }
     }
 

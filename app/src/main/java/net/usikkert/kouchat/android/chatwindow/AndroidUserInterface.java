@@ -23,6 +23,7 @@
 package net.usikkert.kouchat.android.chatwindow;
 
 import java.io.File;
+import java.io.FileNotFoundException;
 import java.util.concurrent.ExecutionException;
 
 import net.usikkert.kouchat.Constants;
@@ -30,11 +31,16 @@ import net.usikkert.kouchat.android.R;
 import net.usikkert.kouchat.android.component.Command;
 import net.usikkert.kouchat.android.component.CommandWithToastOnExceptionAsyncTask;
 import net.usikkert.kouchat.android.controller.MainChatController;
+import net.usikkert.kouchat.android.controller.ReceiveFileController;
+import net.usikkert.kouchat.android.controller.TrustKeyController;
 import net.usikkert.kouchat.android.filetransfer.AndroidFileTransferListener;
 import net.usikkert.kouchat.android.filetransfer.AndroidFileUtils;
 import net.usikkert.kouchat.android.notification.NotificationService;
 import net.usikkert.kouchat.android.settings.AndroidSettings;
 import net.usikkert.kouchat.android.settings.AndroidSettingsSaver;
+import net.usikkert.kouchat.crypto.CryptoStatusListener;
+import net.usikkert.kouchat.crypto.TrustCallback;
+import net.usikkert.kouchat.crypto.TrustPrompt;
 import net.usikkert.kouchat.event.NetworkConnectionListener;
 import net.usikkert.kouchat.message.CoreMessages;
 import net.usikkert.kouchat.misc.ChatLogger;
@@ -51,6 +57,7 @@ import net.usikkert.kouchat.net.FileSender;
 import net.usikkert.kouchat.net.FileToSend;
 import net.usikkert.kouchat.net.FileTransfer;
 import net.usikkert.kouchat.net.TransferList;
+import net.usikkert.kouchat.settings.NetworkMode;
 import net.usikkert.kouchat.ui.ChatWindow;
 import net.usikkert.kouchat.ui.UserInterface;
 import net.usikkert.kouchat.util.Sleeper;
@@ -58,6 +65,8 @@ import net.usikkert.kouchat.util.Tools;
 import net.usikkert.kouchat.util.Validate;
 
 import android.content.Context;
+import android.content.Intent;
+import android.graphics.BitmapFactory;
 import android.os.AsyncTask;
 import android.widget.Toast;
 
@@ -66,7 +75,7 @@ import android.widget.Toast;
  *
  * @author Christian Ihle
  */
-public class AndroidUserInterface implements UserInterface, ChatWindow {
+public class AndroidUserInterface implements UserInterface, ChatWindow, TrustPrompt {
 
     private final MessageController msgController;
     private final Controller controller;
@@ -81,6 +90,9 @@ public class AndroidUserInterface implements UserInterface, ChatWindow {
     private final AndroidFileUtils androidFileUtils;
     private final Sleeper sleeper;
     private final ErrorHandler errorHandler;
+
+    /** Pending trust dialogs, keyed by peer user code, so the activity can deliver the decision. */
+    private final java.util.Map<Integer, TrustCallback> pendingTrustCallbacks = new java.util.concurrent.ConcurrentHashMap<>();
 
     private MainChatController mainChatController;
 
@@ -99,6 +111,14 @@ public class AndroidUserInterface implements UserInterface, ChatWindow {
         msgController = new MessageController(this, this, settings, errorHandler);
         final CoreMessages coreMessages = new CoreMessages();
         controller = new Controller(this, settings, new AndroidSettingsSaver(), coreMessages, errorHandler);
+        controller.setTrustPrompt(this);
+        controller.getCryptoManager().setStatusListener(new CryptoStatusListener() {
+            @Override
+            public void peerUnsupported(final User peer) {
+                msgController.showSystemMessage(coreMessages.getMessage(
+                        "core.crypto.systemMessage.peerUnsupported", peer.getNick()));
+            }
+        });
         commandParser = new CommandParser(controller, this, settings, coreMessages);
         androidFileUtils = new AndroidFileUtils();
         sleeper = new Sleeper();
@@ -129,6 +149,7 @@ public class AndroidUserInterface implements UserInterface, ChatWindow {
     @Override
     public void showFileSave(final FileReceiver fileReceiver) {
         notificationService.notifyNewFileTransfer(fileReceiver);
+        openReceiveFileDialog(fileReceiver);
 
         while (!fileReceiver.isAccepted() && !fileReceiver.isRejected() && !fileReceiver.isCanceled()) {
             sleeper.sleep(500);
@@ -136,6 +157,28 @@ public class AndroidUserInterface implements UserInterface, ChatWindow {
 
         if (!fileReceiver.isAccepted()) {
             notificationService.cancelFileTransferNotification(fileReceiver);
+        }
+    }
+
+    /**
+     * Opens the accept/reject dialog for an incoming file transfer as a popup
+     * window, so the user does not have to open the notification shade first.
+     *
+     * @param fileReceiver The incoming file transfer.
+     */
+    private void openReceiveFileDialog(final FileReceiver fileReceiver) {
+        final Intent intent = new Intent(context, ReceiveFileController.class);
+        intent.putExtra("userCode", fileReceiver.getUser().getCode());
+        intent.putExtra("fileTransferId", fileReceiver.getId());
+        intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+
+        try {
+            context.startActivity(intent);
+        }
+
+        catch (final Exception e) {
+            // Starting the activity from the background can be restricted on some Android versions.
+            // The notification is still shown, so the user can open the dialog from there.
         }
     }
 
@@ -149,7 +192,7 @@ public class AndroidUserInterface implements UserInterface, ChatWindow {
     public void showTransfer(final FileReceiver fileRes) {
         Validate.notNull(fileRes, "FileReceiver can not be null");
 
-        final File fileInDownloads = androidFileUtils.createFileInDownloadsWithAvailableName(fileRes.getFileName());
+        final File fileInDownloads = androidFileUtils.createFileInDownloadsWithAvailableName(context, fileRes.getFileName());
         fileRes.setFile(fileInDownloads);
 
         new AndroidFileTransferListener(fileRes, context, androidFileUtils,
@@ -167,6 +210,133 @@ public class AndroidUserInterface implements UserInterface, ChatWindow {
 
         new AndroidFileTransferListener(fileSend, context, androidFileUtils,
                                         msgController, notificationService);
+    }
+
+    /**
+     * Sends an expose message to a specific ip address, to connect to a client
+     * that may not be on the same multicast network.
+     *
+     * @param ipAddress The ip address to connect to.
+     */
+    public void connectToIp(final String ipAddress) {
+        controller.connectToIp(ipAddress);
+    }
+
+    /**
+     * Switches the network mode between broadcast and encrypted P2P mesh.
+     *
+     * <p>Dispatched to a background thread: P2P mode triggers handshakes (TCP writes)
+     * which must not run on Android's main thread.</p>
+     *
+     * @param mode The new network mode.
+     */
+    public void setNetworkMode(final NetworkMode mode) {
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                controller.setNetworkMode(mode);
+
+                // Refresh the title bar and the network status bar with the new mode.
+                showTopic();
+            }
+        }, "SetNetworkMode").start();
+    }
+
+    /**
+     * Actively initiates the encrypted handshake with a peer, e.g. when the user opens
+     * a private chat with them. Shows "Establishing encrypted connection..." in the
+     * private chat, then the trust dialog when the peer's key arrives.
+     *
+     * <p>Dispatched to a background thread: the handshake sends network messages which
+     * must not run on Android's main thread.</p>
+     *
+     * @param user The peer to establish an encrypted channel with.
+     */
+    public void initiateEncryptedChat(final User user) {
+        if (user == null || user.isMe()) {
+            return;
+        }
+
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                controller.initiatePrivateChat(user);
+            }
+        }, "InitiateEncryptedChat").start();
+    }
+
+    // ----- End-to-end encryption: trust prompt -----
+
+    /**
+     * Called (from the crypto responder thread) when a peer's key needs a trust decision.
+     * Posts a notification and launches the {@link TrustKeyController} activity; the decision
+     * is delivered back via {@link #reportTrustDecision(int, boolean)}.
+     *
+     * <p>The notification is posted first: when the app is backgrounded, Android blocks the
+     * direct activity start (silently, without an exception), but the notification still
+     * shows and tapping it opens the trust dialog.</p>
+     *
+     * {@inheritDoc}
+     */
+    @Override
+    public void requestTrust(final User peer, final String fingerprint, final TrustCallback callback) {
+        pendingTrustCallbacks.put(peer.getCode(), callback);
+
+        notificationService.notifyTrustRequested(peer, fingerprint);
+
+        final Intent intent = new Intent(context, TrustKeyController.class);
+        intent.putExtra("userCode", peer.getCode());
+        intent.putExtra("userNick", peer.getNick());
+        intent.putExtra("fingerprint", fingerprint);
+        intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+
+        try {
+            context.startActivity(intent);
+        }
+
+        catch (final Exception e) {
+            // Starting the activity can be restricted when backgrounded. The notification
+            // remains, so the user can still open the dialog from there - don't decline.
+        }
+    }
+
+    /**
+     * Dismisses the trust notification for a peer, e.g. when the trust dialog is showing.
+     *
+     * @param userCode The user code of the peer.
+     */
+    public void dismissTrustNotification(final int userCode) {
+        notificationService.cancelTrustNotification(userCode);
+    }
+
+    /**
+     * Called by {@link TrustKeyController} when the user has decided whether to trust a peer.
+     *
+     * <p>Dispatched to a background thread because the crypto manager's response does network
+     * I/O (sending KEYTRUST/KEYTRUSTACK over TCP) and file I/O (persisting trust) - both
+     * forbidden on Android's main thread ({@code NetworkOnMainThreadException}).</p>
+     *
+     * @param userCode The peer's user code.
+     * @param trusted True if the user chose to trust the key.
+     */
+    public void reportTrustDecision(final int userCode, final boolean trusted) {
+        final TrustCallback callback = pendingTrustCallbacks.remove(userCode);
+        notificationService.cancelTrustNotification(userCode);
+
+        if (callback != null) {
+            new Thread(new Runnable() {
+                @Override
+                public void run() {
+                    try {
+                        callback.onDecision(trusted);
+                    }
+
+                    catch (final RuntimeException e) {
+                        android.util.Log.e("KouChat", "Trust decision handling failed", e);
+                    }
+                }
+            }, "TrustDecision").start();
+        }
     }
 
     /**
@@ -231,7 +401,58 @@ public class AndroidUserInterface implements UserInterface, ChatWindow {
             final String topic = formatTopic();
 
             mainChatController.updateTitleAndSubtitle(title, topic);
+            mainChatController.updateNetworkStatus(formatNetworkStatus());
         }
+    }
+
+    /**
+     * Builds the text for the network status bar: the current network mode and
+     * the state of the network connection.
+     *
+     * @return The status text, like "Network: Multicast - Connected".
+     */
+    private String formatNetworkStatus() {
+        final NetworkMode networkMode = controller.getNetworkMode() == null
+                ? NetworkMode.MULTICAST : controller.getNetworkMode();
+
+        final int modeResourceId;
+
+        switch (networkMode) {
+            case P2P:
+                modeResourceId = R.string.main_chat_status_mode_p2p;
+                break;
+
+            case UNICAST:
+                modeResourceId = R.string.main_chat_status_mode_unicast;
+                break;
+
+            case BROADCAST:
+                modeResourceId = R.string.main_chat_status_mode_broadcast;
+                break;
+
+            default:
+                modeResourceId = R.string.main_chat_status_mode_multicast;
+                break;
+        }
+
+        final String modeText = context.getString(R.string.main_chat_status_network_mode,
+                context.getString(modeResourceId));
+
+        final String connectionText;
+
+        if (controller.isConnected()) {
+            connectionText = context.getString(R.string.main_chat_status_connected);
+        }
+
+        else if (controller.isLoggedOn()) {
+            connectionText = context.getString(R.string.main_chat_status_connection_lost);
+        }
+
+        else {
+            connectionText = context.getString(R.string.main_chat_status_not_connected);
+        }
+
+        return modeText + " - " + connectionText;
     }
 
     private String formatTitle() {
@@ -401,6 +622,17 @@ public class AndroidUserInterface implements UserInterface, ChatWindow {
         Validate.notEmpty(message, "Message can not be empty");
 
         final CharSequence styledMessage = messageStyler.styleAndAppend(message, color);
+
+        if (mainChatController != null) {
+            mainChatController.appendToChat(styledMessage);
+        }
+    }
+
+    @Override
+    public void appendImage(final byte[] imageBytes, final String label, final int color) {
+        Validate.notNull(imageBytes, "Image bytes can not be null");
+
+        final CharSequence styledMessage = messageStyler.styleAndAppendImage(imageBytes, label, color);
 
         if (mainChatController != null) {
             mainChatController.appendToChat(styledMessage);
@@ -619,8 +851,35 @@ public class AndroidUserInterface implements UserInterface, ChatWindow {
             @Override
             public void runCommand() throws CommandException {
                 commandParser.sendFile(user, file);
+                echoImageIfApplicable(user, file);
             }
         }).execute();
+    }
+
+    /**
+     * Shows a sent image inline, routing it to the private chat window with the
+     * recipient if one is open, otherwise to the main chat.
+     *
+     * <p>The image is detected by attempting to decode the bytes, rather than
+     * relying on the file name extension - some Android image providers return
+     * a display name without an extension.</p>
+     *
+     * @param user The recipient of the file.
+     * @param file The file that was just sent.
+     */
+    private void echoImageIfApplicable(final User user, final FileToSend file) {
+        try {
+            final byte[] imageBytes = AndroidFileUtils.readBytes(file.getInputStream());
+
+            if (imageBytes != null && imageBytes.length > 0
+                    && BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.length) != null) {
+                msgController.showImageMessage(user, me.getNick(), imageBytes);
+            }
+        }
+
+        catch (final Exception e) {
+            // Could not read the image for inline echo; the file is still sent.
+        }
     }
 
     public void registerNetworkConnectionListener(final NetworkConnectionListener listener) {

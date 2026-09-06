@@ -113,7 +113,11 @@ public class OperatingSystemNetworkInfoTest {
             return;
         }
 
-        assertNotNull(osInterface);
+        // The OS may prefer a proxy/virtual adapter (e.g. Mihomo/Clash 198.18.x.x)
+        // which is now filtered out, so osInterface may be null.
+        if (osInterface == null) {
+            return;
+        }
 
         // This is known to sometimes fail in Vista. It is unknown why Vista
         // prefers unusable network interfaces.

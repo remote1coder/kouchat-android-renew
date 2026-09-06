@@ -1,8 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-          xmlns:tools="http://schemas.android.com/tools"
-          package="net.usikkert.kouchat.android">
+          xmlns:tools="http://schemas.android.com/tools">
 
   <uses-permission android:name="android.permission.INTERNET"/>
   <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"/>
@@ -11,6 +10,8 @@
   <uses-permission android:name="android.permission.WAKE_LOCK"/>
   <uses-permission android:name="android.permission.VIBRATE"/>
   <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
+  <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE"/>
+  <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
 
   <uses-feature android:name="android.hardware.wifi"/>
 
@@ -25,7 +26,8 @@
          If not set, then using quit from the main chat will open the last private chat,
          and pressing the back button will again open the main chat, and so on. -->
     <activity android:name=".controller.MainChatController"
-              android:launchMode="singleTask">
+              android:launchMode="singleTask"
+              android:exported="true">
       <intent-filter>
         <action android:name="android.intent.action.MAIN" />
         <category android:name="android.intent.category.LAUNCHER" />
@@ -42,7 +44,8 @@
               android:windowSoftInputMode="adjustResize"/>
 
     <activity android:name=".controller.SendFileController"
-              android:theme="@android:style/Theme.Dialog">
+              android:theme="@android:style/Theme.Dialog"
+              android:exported="true">
       <intent-filter>
         <action android:name="android.intent.action.SEND" />
         <category android:name="android.intent.category.DEFAULT"/>
@@ -57,9 +60,32 @@
               android:taskAffinity=""
               android:excludeFromRecents="true"/>
 
-    <service android:name=".service.ChatService"/>
+    <!-- configChanges: avoid recreation on rotation, which would destroy the dialog and
+         report an automatic "don't trust" before the user has answered. -->
+    <activity android:name=".controller.TrustKeyController"
+              android:theme="@style/Theme.KouChat.Dialog.Translucent"
+              android:taskAffinity=""
+              android:configChanges="orientation|screenSize|keyboardHidden|screenLayout|smallestScreenSize"
+              android:excludeFromRecents="true"/>
+
+    <service android:name=".service.ChatService"
+             android:foregroundServiceType="specialUse">
+        <property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                  android:value="Persistent LAN chat connection" />
+    </service>
 
     <service android:name=".service.CancelFileTransferService"/>
+
+    <!-- FileProvider used to share inline images via ACTION_SEND. -->
+    <provider
+        android:name="androidx.core.content.FileProvider"
+        android:authorities="${applicationId}.fileprovider"
+        android:exported="false"
+        android:grantUriPermissions="true">
+      <meta-data
+          android:name="android.support.FILE_PROVIDER_PATHS"
+          android:resource="@xml/file_paths" />
+    </provider>
 
   </application>
 

@@ -22,9 +22,13 @@
 
 package net.usikkert.kouchat.android.filetransfer;
 
+import java.io.ByteArrayOutputStream;
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileNotFoundException;
+import java.io.IOException;
 import java.io.InputStream;
+import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import net.usikkert.kouchat.net.FileToSend;
@@ -47,6 +51,9 @@ import android.provider.OpenableColumns;
 public class AndroidFileUtils {
 
     private static final Logger LOG = Logger.getLogger(AndroidFileUtils.class.getName());
+
+    /** Buffer size used when reading files into memory. */
+    private static final int READ_BUFFER_SIZE = 4096;
 
     private static final String URI_SCHEME_CONTENT = "content";
     private static final String URI_SCHEME_FILE = "file";
@@ -139,6 +146,58 @@ public class AndroidFileUtils {
     }
 
     /**
+     * Reads the contents of a file into a byte array.
+     *
+     * <p>Used to read received image files so they can be shown inline in the
+     * chat. Returns <code>null</code> if the file could not be read.</p>
+     *
+     * @param file The file to read.
+     * @return The bytes of the file, or <code>null</code>.
+     */
+    public byte[] readBytes(final File file) {
+        Validate.notNull(file, "File can not be null");
+
+        try {
+            return readBytes(new FileInputStream(file));
+        }
+
+        catch (final FileNotFoundException e) {
+            LOG.log(Level.WARNING, "Could not find file " + file + ": " + e.getMessage(), e);
+            return null;
+        }
+    }
+
+    /**
+     * Reads all bytes from an input stream into a byte array.
+     *
+     * <p>Used to read the bytes of a file to send (for example a picked image)
+     * so it can be shown inline in the chat. Returns <code>null</code> if the
+     * stream could not be read.</p>
+     *
+     * @param input The input stream to read. Will be closed.
+     * @return The bytes of the stream, or <code>null</code>.
+     */
+    public static byte[] readBytes(final InputStream input) {
+        Validate.notNull(input, "Input stream can not be null");
+
+        try (final InputStream in = input) {
+            final ByteArrayOutputStream output = new ByteArrayOutputStream();
+            final byte[] buffer = new byte[READ_BUFFER_SIZE];
+            int read;
+
+            while ((read = in.read(buffer)) != -1) {
+                output.write(buffer, 0, read);
+            }
+
+            return output.toByteArray();
+        }
+
+        catch (final IOException e) {
+            return null;
+        }
+    }
+
+    /**
      * Adds the file to the media database in Android.
      *
      * <p>It's an important step after adding a file to the file system. Without doing this, the
@@ -151,10 +210,8 @@ public class AndroidFileUtils {
         Validate.notNull(context, "Context can not be null");
         Validate.notNull(fileToAdd, "File to add can not be null");
 
-        final Intent scanMediaIntent = new Intent(Intent.ACTION_MEDIA_SCANNER_SCAN_FILE);
-        scanMediaIntent.setData(Uri.fromFile(fileToAdd));
-
-        context.sendBroadcast(scanMediaIntent);
+        android.media.MediaScannerConnection.scanFile(context,
+                new String[] { fileToAdd.getAbsolutePath() }, null, null);
     }
 
     /**
@@ -166,18 +223,19 @@ public class AndroidFileUtils {
      * @param fileName The suggested file name to use on the file.
      * @return A new unique file.
      */
-    public File createFileInDownloadsWithAvailableName(final String fileName) {
+    public File createFileInDownloadsWithAvailableName(final Context context, final String fileName) {
+        Validate.notNull(context, "Context can not be null");
         Validate.notEmpty(fileName, "File name can not be empty");
 
-        final File directory = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
+        final File directory = context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS);
 
-        // Not sure if this is supposed to be missing, but it happens on the Android 2.3.3 emulator.
-        if (!directory.exists()) {
-            if (!directory.mkdirs()) {
-                LOG.warning(String.format(
-                        "Unable to create the public download directory. Saving here will probably fail. path=%s",
-                        directory));
-            }
+        if (directory != null && !directory.exists()) {
+            directory.mkdirs();
+        }
+
+        if (directory == null) {
+            LOG.warning("Unable to access app-specific download directory.");
+            return new File(fileName);
         }
 
         return Tools.getFileWithIncrementedName(new File(directory, fileName));

@@ -11,3 +11,8 @@ tmp
 .gradle
 local.properties
 build
+
+# AI-generated docs: only changes.md and README belong in the repo (workflow rule, 2026-09-06)
+changes-bak.md
+CLAUDE.md
+.claude/

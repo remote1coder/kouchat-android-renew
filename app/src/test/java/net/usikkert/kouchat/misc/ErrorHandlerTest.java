@@ -112,6 +112,6 @@ public class ErrorHandlerTest {
 
         errorHandler.showError("error");
 
-        verifyZeroInteractions(listener);
+        verifyNoInteractions(listener);
     }
 }

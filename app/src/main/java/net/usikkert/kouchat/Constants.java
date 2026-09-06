@@ -127,6 +127,14 @@ public interface Constants {
     int MESSAGE_MAX_BYTES = 450;
 
     /**
+     * Max number of bytes allowed in a chat or private chat message.
+     * Larger than the udp limit, so messages over {@link #MESSAGE_MAX_BYTES}
+     * bytes are sent over tcp only. Effectively unlimited for chat purposes,
+     * but bounded to protect against corrupted frames exhausting memory.
+     */
+    int MESSAGE_MAX_BYTES_CHAT = 4 * 1024 * 1024;
+
+    /**
      * The folder where the application can save files.
      */
     String APP_FOLDER = System.getProperty("user.home") +

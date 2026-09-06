@@ -33,6 +33,9 @@ import org.jetbrains.annotations.Nullable;
 /**
  * This class keeps a list of all the ongoing file transfers.
  *
+ * <p>All methods are synchronized because the lists and the id counter are accessed from
+ * several threads (file transfer threads, async responder pool, IdleThread, EDT).</p>
+ *
  * @author Christian Ihle
  */
 public class TransferList {
@@ -61,7 +64,7 @@ public class TransferList {
      * @param file The file to send.
      * @return The file sender object that was added to the transfer list.
      */
-    public FileSender addFileSender(final User user, final FileToSend file) {
+    public synchronized FileSender addFileSender(final User user, final FileToSend file) {
         final FileSender fileSender = new FileSender(user, file, ++fileTransferIdCounter);
         senders.add(fileSender);
 
@@ -73,7 +76,7 @@ public class TransferList {
      *
      * @param fileSender The file sender to remove.
      */
-    public void removeFileSender(final FileSender fileSender) {
+    public synchronized void removeFileSender(final FileSender fileSender) {
         senders.remove(fileSender);
     }
 
@@ -86,7 +89,7 @@ public class TransferList {
      * @return The file sender object, or <code>null</code> if none was found.
      */
     @Nullable
-    public FileSender getFileSender(final User user, final String fileName, final int fileHash) {
+    public synchronized FileSender getFileSender(final User user, final String fileName, final int fileHash) {
         FileSender fileSender = null;
 
         for (final FileSender fs : senders) {
@@ -107,7 +110,7 @@ public class TransferList {
      * @return The file sender object, or <code>null</code> if none was found.
      */
     @Nullable
-    public FileSender getFileSender(final User user, final String fileName) {
+    public synchronized FileSender getFileSender(final User user, final String fileName) {
         FileSender fileSender = null;
 
         for (final FileSender fs : senders) {
@@ -128,7 +131,7 @@ public class TransferList {
      * @return The file sender object, or <code>null</code> if none was found.
      */
     @Nullable
-    public FileSender getFileSender(final User user, final int id) {
+    public synchronized FileSender getFileSender(final User user, final int id) {
         for (final FileSender fs : senders) {
             if (fs.getUser() == user && fs.getId() == id) {
                 return fs;
@@ -144,7 +147,7 @@ public class TransferList {
      * @param user The given user.
      * @return A list of all the file senders for the user.
      */
-    public List<FileSender> getFileSenders(final User user) {
+    public synchronized List<FileSender> getFileSenders(final User user) {
         final List<FileSender> list = new ArrayList<>();
 
         for (final FileSender fs : senders) {
@@ -161,7 +164,7 @@ public class TransferList {
      *
      * @return A list of all the file senders.
      */
-    public List<FileSender> getFileSenders() {
+    public synchronized List<FileSender> getFileSenders() {
         final List<FileSender> list = new ArrayList<>();
 
         for (final FileSender fs : senders) {
@@ -179,7 +182,7 @@ public class TransferList {
      * @param size The size of the file, in bytes.
      * @return The file receiver object that was added to the transfer list.
      */
-    public FileReceiver addFileReceiver(final User user, final File file, final long size) {
+    public synchronized FileReceiver addFileReceiver(final User user, final File file, final long size) {
         final FileReceiver fileReceiver = new FileReceiver(user, file, size, ++fileTransferIdCounter);
         receivers.add(fileReceiver);
 
@@ -191,7 +194,7 @@ public class TransferList {
      *
      * @param fileReceiver The file receiver to remove.
      */
-    public void removeFileReceiver(final FileReceiver fileReceiver) {
+    public synchronized void removeFileReceiver(final FileReceiver fileReceiver) {
         receivers.remove(fileReceiver);
     }
 
@@ -201,7 +204,7 @@ public class TransferList {
      * @param user The given user.
      * @return A list of all the file receivers for the user.
      */
-    public List<FileReceiver> getFileReceivers(final User user) {
+    public synchronized List<FileReceiver> getFileReceivers(final User user) {
         final List<FileReceiver> list = new ArrayList<>();
 
         for (final FileReceiver fr : receivers) {
@@ -221,7 +224,7 @@ public class TransferList {
      * @return The file receiver object, or <code>null</code> if none was found.
      */
     @Nullable
-    public FileReceiver getFileReceiver(final User user, final String fileName) {
+    public synchronized FileReceiver getFileReceiver(final User user, final String fileName) {
         FileReceiver fileReceiver = null;
 
         for (final FileReceiver fr : receivers) {
@@ -242,7 +245,7 @@ public class TransferList {
      * @return The file receiver object, or <code>null</code> if none was found.
      */
     @Nullable
-    public FileReceiver getFileReceiver(final User user, final int id) {
+    public synchronized FileReceiver getFileReceiver(final User user, final int id) {
         for (final FileReceiver fr : receivers) {
             if (fr.getUser() == user && fr.getId() == id) {
                 return fr;
@@ -257,7 +260,7 @@ public class TransferList {
      *
      * @return A list of all the file receivers.
      */
-    public List<FileReceiver> getFileReceivers() {
+    public synchronized List<FileReceiver> getFileReceivers() {
         final List<FileReceiver> list = new ArrayList<>();
 
         for (final FileReceiver fr : receivers) {
@@ -276,7 +279,7 @@ public class TransferList {
      * if none of them was found.
      */
     @Nullable
-    public FileTransfer getFileTransfer(final User user, final String fileName) {
+    public synchronized FileTransfer getFileTransfer(final User user, final String fileName) {
         final FileReceiver fileReceiver = getFileReceiver(user, fileName);
 
         if (fileReceiver != null) {
@@ -295,7 +298,7 @@ public class TransferList {
      * if none of them was found.
      */
     @Nullable
-    public FileTransfer getFileTransfer(final User user, final int id) {
+    public synchronized FileTransfer getFileTransfer(final User user, final int id) {
         final FileReceiver fileReceiver = getFileReceiver(user, id);
 
         if (fileReceiver != null) {

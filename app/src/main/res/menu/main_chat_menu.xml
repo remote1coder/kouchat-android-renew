@@ -16,6 +16,10 @@
             android:title="@string/settings"
             app:showAsAction="never|withText"/>
 
+      <item android:id="@+id/mainChatMenuConnectToIp"
+            android:title="Connect to IP..."
+            app:showAsAction="never|withText"/>
+
       <item android:id="@+id/mainChatMenuAway"
             android:title="@string/away"
             app:showAsAction="never|withText"/>

@@ -47,10 +47,10 @@ public class UDPSender {
     private static final Logger LOG = Logger.getLogger(UDPSender.class.getName());
 
     /** The datagram socket used for sending messages. */
-    private DatagramSocket udpSocket;
+    private volatile DatagramSocket udpSocket;
 
     /** If connected to the network or not. */
-    private boolean connected;
+    private volatile boolean connected;
 
     /** The error handler for registering important messages. */
     private final ErrorHandler errorHandler;

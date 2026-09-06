@@ -51,6 +51,15 @@ public class FileReceiver implements FileTransfer {
     /** The logger. */
     private static final Logger LOG = Logger.getLogger(FileReceiver.class.getName());
 
+    /**
+     * Maximum time in milliseconds to block waiting for data during a transfer
+     * before giving up. This prevents a transfer from getting stuck forever if
+     * the sender connects but stops sending data (for example due to a network
+     * drop or the sender crashing mid-transfer), which would otherwise tie up
+     * the message processing thread until the application is restarted.
+     */
+    private static final int READ_TIMEOUT = 30000;
+
     /** The user sending the file. */
     private final User user;
 
@@ -79,7 +88,7 @@ public class FileReceiver implements FileTransfer {
     private boolean received;
 
     /** If the file transfer is canceled. */
-    private boolean cancel;
+    private volatile boolean cancel;
 
     /** If the client has accepted to receive the file. */
     private boolean accepted;
@@ -171,11 +180,11 @@ public class FileReceiver implements FileTransfer {
         listener.statusConnecting();
 
         received = false;
-        cancel = false;
 
         try {
             if (sSock != null) {
                 sock = sSock.accept();
+                sock.setSoTimeout(READ_TIMEOUT);
                 listener.statusTransferring();
                 fos = new FileOutputStream(file);
                 is = sock.getInputStream();
@@ -491,6 +500,7 @@ public class FileReceiver implements FileTransfer {
          */
         TimeoutThread() {
             setName("TimeoutThread");
+            setDaemon(true);
         }
 
         /**

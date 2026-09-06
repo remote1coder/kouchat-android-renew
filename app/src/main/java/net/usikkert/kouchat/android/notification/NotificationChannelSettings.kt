@@ -30,8 +30,8 @@ import android.content.Context
 import android.graphics.Color
 import android.net.Uri
 import android.os.Build
-import android.support.annotation.RequiresApi
-import android.support.annotation.StringRes
+import androidx.annotation.RequiresApi
+import androidx.annotation.StringRes
 import net.usikkert.kouchat.android.R
 import java.util.*
 

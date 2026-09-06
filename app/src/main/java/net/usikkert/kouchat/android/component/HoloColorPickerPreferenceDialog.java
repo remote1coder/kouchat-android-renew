@@ -29,7 +29,7 @@ import com.larswerkman.holocolorpicker.ValueBar;
 import net.usikkert.kouchat.android.R;
 
 import android.os.Bundle;
-import android.support.v7.preference.PreferenceDialogFragmentCompat;
+import androidx.preference.PreferenceDialogFragmentCompat;
 import android.view.View;
 
 /**
@@ -47,7 +47,7 @@ public class HoloColorPickerPreferenceDialog extends PreferenceDialogFragmentCom
      * A factory method to create an instance of this dialog.
      *
      * <p>Seems to be the recommended pattern, as seen in
-     * {@link android.support.v7.preference.EditTextPreferenceDialogFragmentCompat}</p>
+     * {@link androidx.preference.EditTextPreferenceDialogFragmentCompat}</p>
      *
      * @param key The preference key, like own_color and sys_color.
      * @return An instance of this.

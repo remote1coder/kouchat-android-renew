@@ -24,7 +24,7 @@ package net.usikkert.kouchat.util;
 
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
-import java.io.FileWriter;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Properties;
@@ -79,16 +79,19 @@ public class PropertyTools {
         Validate.notEmpty(filePath, "File path can not be empty");
         Validate.notNull(properties, "Properties can not be null");
 
-        FileWriter fileWriter = null;
+        FileOutputStream outputStream = null;
 
         try {
-            fileWriter = new FileWriter(filePath);
-            properties.store(fileWriter, comment);
+            outputStream = new FileOutputStream(filePath);
+            // store(OutputStream, ...) writes ISO-8859-1 with unicode escaping for non-ASCII,
+            // which matches load(InputStream) in loadProperties() and prevents corruption of
+            // non-ASCII settings (e.g. nicks) across save/reload.
+            properties.store(outputStream, comment);
         }
 
         finally {
-            ioTools.flush(fileWriter);
-            ioTools.close(fileWriter);
+            ioTools.flush(outputStream);
+            ioTools.close(outputStream);
         }
     }
 }

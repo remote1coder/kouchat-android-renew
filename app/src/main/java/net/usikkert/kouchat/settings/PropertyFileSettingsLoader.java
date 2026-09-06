@@ -72,6 +72,7 @@ public class PropertyFileSettingsLoader {
             setBrowser(settings, fileContents);
             setLookAndFeel(settings, fileContents);
             setNetworkInterface(settings, fileContents);
+            setNetworkMode(settings, fileContents);
             setSound(settings, fileContents);
             setSmileys(settings, fileContents);
         }
@@ -139,6 +140,14 @@ public class PropertyFileSettingsLoader {
 
     private void setNetworkInterface(final Settings settings, final Properties fileContents) {
         settings.setNetworkInterface(fileContents.getProperty(NETWORK_INTERFACE.getKey()));
+    }
+
+    private void setNetworkMode(final Settings settings, final Properties fileContents) {
+        // Defaults to BROADCAST (from Settings constructor) if absent or unknown.
+        final String value = fileContents.getProperty(NETWORK_MODE.getKey());
+        if (value != null) {
+            settings.setNetworkMode(NetworkMode.fromKey(value));
+        }
     }
 
     private void setSound(final Settings settings, final Properties fileContents) {

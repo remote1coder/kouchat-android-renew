@@ -25,20 +25,25 @@ package net.usikkert.kouchat.android.controller;
 import net.usikkert.kouchat.android.R;
 import net.usikkert.kouchat.android.chatwindow.AndroidPrivateChatWindow;
 import net.usikkert.kouchat.android.chatwindow.AndroidUserInterface;
+import net.usikkert.kouchat.android.chatwindow.InlineImageViewer;
+import net.usikkert.kouchat.android.filetransfer.AndroidFileUtils;
 import net.usikkert.kouchat.android.service.ChatService;
 import net.usikkert.kouchat.android.service.ChatServiceBinder;
 import net.usikkert.kouchat.misc.User;
+import net.usikkert.kouchat.net.FileToSend;
 
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.ServiceConnection;
+import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.IBinder;
-import android.support.v7.app.ActionBar;
-import android.support.v7.app.AppCompatActivity;
+import androidx.appcompat.app.ActionBar;
+import androidx.appcompat.app.AppCompatActivity;
 import android.view.KeyEvent;
+import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
 import android.widget.EditText;
@@ -70,6 +75,10 @@ public class PrivateChatController extends AppCompatActivity {
     /** If this private chat has been destroyed. */
     private boolean destroyed;
 
+    private final AndroidFileUtils androidFileUtils = new AndroidFileUtils();
+
+    private static final int REQUEST_CODE_PICK_IMAGE = 2002;
+
     @Override
     protected void onCreate(final Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -88,6 +97,7 @@ public class PrivateChatController extends AppCompatActivity {
         actionBar.setDisplayHomeAsUpEnabled(true);
 
         controllerUtils.makeLinksClickable(privateChatView);
+        new InlineImageViewer(this).attach(privateChatView);
         privateChatInput.requestFocus();
     }
 
@@ -137,12 +147,50 @@ public class PrivateChatController extends AppCompatActivity {
         super.onPause();
     }
 
+    @Override
+    public boolean onCreateOptionsMenu(final Menu menu) {
+        getMenuInflater().inflate(R.menu.private_chat_menu, menu);
+
+        return true;
+    }
+
     public boolean onOptionsItemSelected(final MenuItem item) {
-        switch (item.getItemId()) {
-            case android.R.id.home: // Clicked on KouChat icon in the action bar
-                return goBackToMainChat();
-            default:
-                return super.onOptionsItemSelected(item);
+        final int itemId = item.getItemId();
+
+        if (itemId == android.R.id.home) { // Clicked on KouChat icon in the action bar
+            return goBackToMainChat();
+        } else if (itemId == R.id.privateChatMenuSendImage) {
+            pickImage();
+            return true;
+        }
+
+        return super.onOptionsItemSelected(item);
+    }
+
+    private void pickImage() {
+        final Intent pickImageIntent = new Intent(Intent.ACTION_GET_CONTENT);
+        pickImageIntent.setType("image/*");
+        startActivityForResult(pickImageIntent, REQUEST_CODE_PICK_IMAGE);
+    }
+
+    @Override
+    protected void onActivityResult(final int requestCode, final int resultCode, final Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+
+        if (requestCode == REQUEST_CODE_PICK_IMAGE && resultCode == RESULT_OK && data != null && data.getData() != null) {
+            sendImageToUser(data.getData());
+        }
+    }
+
+    private void sendImageToUser(final Uri imageUri) {
+        if (androidUserInterface == null || user == null) {
+            return;
+        }
+
+        final FileToSend fileToSend = androidFileUtils.getFileFromUri(imageUri, getContentResolver());
+
+        if (fileToSend != null) {
+            androidUserInterface.sendFile(user, fileToSend);
         }
     }
 
@@ -221,6 +269,10 @@ public class PrivateChatController extends AppCompatActivity {
             setTitle();
             resetNewPrivateMessageIcon();
             registerPrivateChatInputListener();
+
+            // Actively start the encrypted handshake with this peer (like the Swing UI does
+            // when opening a private chat). No-op if already established or unsupported.
+            androidUserInterface.initiateEncryptedChat(user);
         }
     }
 

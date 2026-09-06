@@ -24,6 +24,7 @@ package net.usikkert.kouchat.android.controller;
 
 import net.usikkert.kouchat.android.R;
 import net.usikkert.kouchat.android.chatwindow.AndroidUserInterface;
+import net.usikkert.kouchat.android.chatwindow.InlineImageViewer;
 import net.usikkert.kouchat.android.component.AboutDialog;
 import net.usikkert.kouchat.android.component.ComeBackDialog;
 import net.usikkert.kouchat.android.component.GoAwayDialog;
@@ -43,8 +44,8 @@ import android.content.ServiceConnection;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.IBinder;
-import android.support.v7.app.ActionBar;
-import android.support.v7.app.AppCompatActivity;
+import androidx.appcompat.app.ActionBar;
+import androidx.appcompat.app.AppCompatActivity;
 import android.text.Editable;
 import android.text.TextWatcher;
 import android.view.KeyEvent;
@@ -91,6 +92,7 @@ public class MainChatController extends AppCompatActivity implements UserListLis
     private ListView mainChatUserList;
     private TextView mainChatView;
     private ScrollView mainChatScroll;
+    private TextView mainChatStatusBar;
     private UserListAdapter userListAdapter;
     private TextWatcher textWatcher;
     private ActionBar actionBar;
@@ -104,9 +106,35 @@ public class MainChatController extends AppCompatActivity implements UserListLis
     /** If the main chat has been destroyed. */
     private boolean destroyed;
 
+    private int selectedUserCode;
+    private static final int REQUEST_CODE_PICK_FILE = 2001;
+
+    @Override
+    protected void onActivityResult(final int requestCode, final int resultCode, final Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+
+        if (requestCode == REQUEST_CODE_PICK_FILE && resultCode == RESULT_OK && data != null && data.getData() != null) {
+            final Intent sendIntent = new Intent(this, SendFileController.class);
+            sendIntent.setAction(Intent.ACTION_SEND);
+            sendIntent.setType("*/*");
+            sendIntent.putExtra(Intent.EXTRA_STREAM, data.getData());
+            startActivity(sendIntent);
+        }
+    }
+
     @Override
     protected void onCreate(final Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+
+        // Request POST_NOTIFICATIONS permission on Android 13+ (API 33+)
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+            if (androidx.core.content.ContextCompat.checkSelfPermission(this,
+                    android.Manifest.permission.POST_NOTIFICATIONS)
+                    != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                androidx.core.app.ActivityCompat.requestPermissions(this,
+                        new String[]{android.Manifest.permission.POST_NOTIFICATIONS}, 1001);
+            }
+        }
 
         setContentView(R.layout.main_chat);
 
@@ -114,12 +142,14 @@ public class MainChatController extends AppCompatActivity implements UserListLis
         mainChatUserList = findViewById(R.id.mainChatUserList);
         mainChatView = findViewById(R.id.mainChatView);
         mainChatScroll = findViewById(R.id.mainChatScroll);
+        mainChatStatusBar = findViewById(R.id.mainChatStatusBar);
         actionBar = getSupportActionBar();
 
         registerMainChatInputListener();
         registerMainChatTextListener();
         registerUserListClickListener();
         controllerUtils.makeLinksClickable(mainChatView);
+        new InlineImageViewer(this).attach(mainChatView);
         setupMainChatUserList();
         openKeyboard();
 
@@ -202,6 +232,53 @@ public class MainChatController extends AppCompatActivity implements UserListLis
                 final Intent privateChatIntent = new Intent(MainChatController.this, PrivateChatController.class);
                 privateChatIntent.putExtra("userCode", selectedUser.getCode());
                 startActivity(privateChatIntent);
+            }
+        });
+
+        mainChatUserList.setOnItemLongClickListener(new AdapterView.OnItemLongClickListener() {
+            @Override
+            public boolean onItemLongClick(final AdapterView<?> parent, final View view, final int position, final long id) {
+                final User selectedUser = (User) parent.getItemAtPosition(position);
+
+                if (selectedUser.isMe()) {
+                    return false;
+                }
+
+                final String[] options = {
+                        getString(R.string.send_file),
+                        getString(R.string.send_image),
+                        getString(R.string.private_chat),
+                        getString(R.string.cancel)
+                };
+
+                new androidx.appcompat.app.AlertDialog.Builder(MainChatController.this)
+                        .setTitle(selectedUser.getNick())
+                        .setItems(options, new android.content.DialogInterface.OnClickListener() {
+                            @Override
+                            public void onClick(final android.content.DialogInterface dialog, final int which) {
+                                if (which == 0) {
+                                    // Send file (any type)
+                                    selectedUserCode = selectedUser.getCode();
+                                    final Intent pickFile = new Intent(Intent.ACTION_GET_CONTENT);
+                                    pickFile.setType("*/*");
+                                    startActivityForResult(pickFile, REQUEST_CODE_PICK_FILE);
+                                } else if (which == 1) {
+                                    // Send image
+                                    selectedUserCode = selectedUser.getCode();
+                                    final Intent pickImage = new Intent(Intent.ACTION_GET_CONTENT);
+                                    pickImage.setType("image/*");
+                                    startActivityForResult(pickImage, REQUEST_CODE_PICK_FILE);
+                                } else if (which == 2) {
+                                    // Private chat
+                                    final Intent privateChatIntent = new Intent(MainChatController.this, PrivateChatController.class);
+                                    privateChatIntent.putExtra("userCode", selectedUser.getCode());
+                                    startActivity(privateChatIntent);
+                                }
+                            }
+                        })
+                        .show();
+
+                return true;
             }
         });
     }
@@ -287,20 +364,52 @@ public class MainChatController extends AppCompatActivity implements UserListLis
      */
     @Override
     public boolean onOptionsItemSelected(final MenuItem item) {
-        switch (item.getItemId()) {
-            case R.id.mainChatMenuQuit:
-                return shutdownApplication();
-            case R.id.mainChatMenuAway:
-                return showAwayDialog();
-            case R.id.mainChatMenuTopic:
-                return showTopicDialog();
-            case R.id.mainChatMenuAbout:
-                return showAboutDialog();
-            case R.id.mainChatMenuSettings:
-                return showSettingsDialog();
-            default:
-                return super.onOptionsItemSelected(item);
+        final int itemId = item.getItemId();
+
+        if (itemId == R.id.mainChatMenuQuit) {
+            return shutdownApplication();
+        } else if (itemId == R.id.mainChatMenuAway) {
+            return showAwayDialog();
+        } else if (itemId == R.id.mainChatMenuTopic) {
+            return showTopicDialog();
+        } else if (itemId == R.id.mainChatMenuAbout) {
+            return showAboutDialog();
+        } else if (itemId == R.id.mainChatMenuSettings) {
+            return showSettingsDialog();
+        } else if (itemId == R.id.mainChatMenuConnectToIp) {
+            return showConnectToIpDialog();
+        } else {
+            return super.onOptionsItemSelected(item);
         }
+    }
+
+    private boolean showConnectToIpDialog() {
+        final android.widget.EditText input = new android.widget.EditText(this);
+        input.setInputType(android.text.InputType.TYPE_CLASS_TEXT);
+        input.setHint("e.g. 10.0.2.2 or 192.168.1.100");
+
+        new androidx.appcompat.app.AlertDialog.Builder(this)
+                .setTitle("Connect to IP")
+                .setView(input)
+                .setPositiveButton("Connect", new android.content.DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(final android.content.DialogInterface dialog, final int which) {
+                        final String ip = input.getText().toString().trim();
+
+                        if (!ip.isEmpty() && androidUserInterface != null) {
+                            new Thread(new Runnable() {
+                                @Override
+                                public void run() {
+                                    androidUserInterface.connectToIp(ip);
+                                }
+                            }).start();
+                        }
+                    }
+                })
+                .setNegativeButton("Cancel", null)
+                .show();
+
+        return true;
     }
 
     /**
@@ -407,6 +516,22 @@ public class MainChatController extends AppCompatActivity implements UserListLis
                 if (!destroyed) {
                     actionBar.setTitle(title);
                     actionBar.setSubtitle(subtitle);
+                }
+            }
+        });
+    }
+
+    /**
+     * Updates the network status bar at the bottom of the main chat, showing the
+     * current network mode and the state of the network connection.
+     *
+     * @param status The status text to show.
+     */
+    public void updateNetworkStatus(final String status) {
+        runOnUiThread(new Runnable() {
+            public void run() {
+                if (!destroyed) {
+                    mainChatStatusBar.setText(status);
                 }
             }
         });

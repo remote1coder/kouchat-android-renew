@@ -49,13 +49,13 @@ public class UDPReceiver implements Runnable {
     private static final Logger LOG = Logger.getLogger(UDPReceiver.class.getName());
 
     /** The datagram socket used for receiving messages. */
-    private DatagramSocket udpSocket;
+    private volatile DatagramSocket udpSocket;
 
     /** The listener getting all the messages received here. */
     private ReceiverListener listener;
 
     /** If connected to the network or not. */
-    private boolean connected;
+    private volatile boolean connected;
 
     /** The error handler for registering important messages. */
     private final ErrorHandler errorHandler;
@@ -143,6 +143,12 @@ public class UDPReceiver implements Runnable {
 
                 catch (final IOException e) {
                     LOG.log(Level.SEVERE, e.toString() + " " + port);
+
+                    // setTrafficClass() can throw after the socket was created, so close it
+                    // before retrying on the next port to avoid leaking file descriptors.
+                    if (udpSocket != null && !udpSocket.isClosed()) {
+                        udpSocket.close();
+                    }
 
                     counter++;
                     port++;

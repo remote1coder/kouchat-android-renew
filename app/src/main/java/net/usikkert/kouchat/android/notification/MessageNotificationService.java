@@ -28,7 +28,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.graphics.Typeface;
 import android.os.Build;
-import android.support.v4.app.NotificationCompat;
+import androidx.core.app.NotificationCompat;
 import android.text.SpannableString;
 import android.text.style.StyleSpan;
 
@@ -216,7 +216,7 @@ public class MessageNotificationService {
     }
 
     private PendingIntent createIntentForMainChat() {
-        return PendingIntent.getActivity(context, 0, new Intent(context, MainChatController.class), 0);
+        return PendingIntent.getActivity(context, 0, new Intent(context, MainChatController.class), PendingIntent.FLAG_IMMUTABLE);
     }
 
     private PendingIntent createIntentForPrivateChat(final User user) {
@@ -224,7 +224,7 @@ public class MessageNotificationService {
         privateChatIntent.putExtra("userCode", user.getCode());
         privateChatIntent.setAction("openPrivateChat " + System.currentTimeMillis()); // Unique - to avoid it being cached
 
-        return PendingIntent.getActivity(context, 0, privateChatIntent, 0);
+        return PendingIntent.getActivity(context, 0, privateChatIntent, PendingIntent.FLAG_IMMUTABLE);
     }
 
     public boolean isMainChatActivity() {

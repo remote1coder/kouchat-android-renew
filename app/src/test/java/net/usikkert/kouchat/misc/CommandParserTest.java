@@ -224,7 +224,7 @@ public class CommandParserTest {
         parser.parse("/reject SomeOne 1");
 
         verify(transferList).getFileReceiver(someOne, 1);
-        verifyZeroInteractions(messageController);
+        verifyNoMoreInteractions(messageController);
         verify(fileReceiver).reject();
     }
 
@@ -236,7 +236,7 @@ public class CommandParserTest {
         parser.parse("/reject SomeOne 1  ");
 
         verify(transferList).getFileReceiver(someOne, 1);
-        verifyZeroInteractions(messageController);
+        verifyNoMoreInteractions(messageController);
         verify(fileReceiver).reject();
     }
 
@@ -322,7 +322,7 @@ public class CommandParserTest {
         parser.parse("/receive SomeOne 1");
 
         verify(transferList).getFileReceiver(someOne, 1);
-        verifyZeroInteractions(messageController);
+        verifyNoMoreInteractions(messageController);
         verify(fileReceiver).accept();
     }
 
@@ -335,7 +335,7 @@ public class CommandParserTest {
         parser.parse("/receive SomeOne 1  ");
 
         verify(transferList).getFileReceiver(someOne, 1);
-        verifyZeroInteractions(messageController);
+        verifyNoMoreInteractions(messageController);
         verify(fileReceiver).accept();
     }
 
@@ -439,7 +439,7 @@ public class CommandParserTest {
         parser.parse("/cancel SomeOne 1");
 
         verify(transferList).getFileTransfer(someOne, 1);
-        verifyZeroInteractions(messageController);
+        verifyNoMoreInteractions(messageController);
         verify(fileReceiver).cancel();
     }
 
@@ -451,7 +451,7 @@ public class CommandParserTest {
         parser.parse("/cancel SomeOne 1");
 
         verify(transferList).getFileTransfer(someOne, 1);
-        verifyZeroInteractions(messageController);
+        verifyNoMoreInteractions(messageController);
         verify(fileSender).cancel();
     }
 
@@ -481,7 +481,7 @@ public class CommandParserTest {
         parser.parse("/away");
 
         verify(messageController).showSystemMessage("/away - missing argument <away message>");
-        verifyZeroInteractions(controller);
+        verifyNoMoreInteractions(controller);
     }
 
     @Test
@@ -492,7 +492,7 @@ public class CommandParserTest {
         parser.parse("/away again");
 
         verify(messageController).showSystemMessage("/away - you are already away: 'Gone with the wind'");
-        verifyZeroInteractions(controller);
+        verifyNoMoreInteractions(controller);
     }
 
     @Test
@@ -500,7 +500,7 @@ public class CommandParserTest {
         parser.parse("/away Out shopping");
 
         verify(controller).goAway("Out shopping");
-        verifyZeroInteractions(messageController);
+        verifyNoMoreInteractions(messageController);
     }
 
     @Test
@@ -522,7 +522,7 @@ public class CommandParserTest {
         parser.parse("/back");
 
         verify(messageController).showSystemMessage("/back - you are not away");
-        verifyZeroInteractions(controller);
+        verifyNoMoreInteractions(controller);
     }
 
     @Test
@@ -533,7 +533,7 @@ public class CommandParserTest {
         parser.parse("/back");
 
         verify(controller).comeBack();
-        verifyZeroInteractions(messageController);
+        verifyNoMoreInteractions(messageController);
     }
 
     @Test
@@ -583,7 +583,7 @@ public class CommandParserTest {
         parser.parse("/topic hello");
 
         verify(parser).fixTopic(" hello");
-        verifyZeroInteractions(messageController);
+        verifyNoMoreInteractions(messageController);
     }
 
     @Test
@@ -604,7 +604,7 @@ public class CommandParserTest {
 
         verify(controller).getTopic();
         verifyNoMoreInteractions(controller);
-        verifyZeroInteractions(messageController, userInterface);
+        verifyNoMoreInteractions(messageController, userInterface);
     }
 
     @Test
@@ -615,7 +615,7 @@ public class CommandParserTest {
 
         verify(controller).getTopic();
         verifyNoMoreInteractions(controller);
-        verifyZeroInteractions(messageController, userInterface);
+        verifyNoMoreInteractions(messageController, userInterface);
     }
 
     @Test
@@ -868,13 +868,14 @@ public class CommandParserTest {
     public void sendShouldReturnIfFileIsDirectory() throws CommandException {
         setupSomeOne();
 
-        final File directory = new File("target");
+        // A directory that exists in both Maven and Gradle builds ("target" is Maven only).
+        final File directory = new File("src");
         assertTrue(directory.exists());
         assertFalse(directory.isFile());
 
-        parser.parse("/send SomeOne target");
+        parser.parse("/send SomeOne src");
 
-        verify(messageController).showSystemMessage("/send - no such file 'target'");
+        verify(messageController).showSystemMessage("/send - no such file 'src'");
         verify(parser, never()).sendFile(any(User.class), any(FileToSend.class));
     }
 
@@ -952,6 +953,52 @@ public class CommandParserTest {
         parser.sendFile(user, file);
 
         verify(messageController).showSystemMessage("Trying to send the file picture.png (#2) [54.00MB] to Kelly");
+    }
+
+    @Test
+    public void sendFileToAllUsersShouldSendToAllOnlineUsersExceptMe() throws CommandException {
+        final User user1 = new User("Alice", 111);
+        final User user2 = new User("Bob", 222);
+        userList.add(user1);
+        userList.add(user2);
+
+        final FileToSend file = FileToSend.fromBytes(new byte[] { 1, 2, 3 }, "screenshot.png");
+        final FileSender fileSender = mock(FileSender.class);
+        when(fileSender.getId()).thenReturn(7);
+        when(transferList.addFileSender(any(User.class), any(FileToSend.class))).thenReturn(fileSender);
+
+        parser.sendFileToAllUsers(file);
+
+        verify(controller).sendFile(user1, file);
+        verify(controller).sendFile(user2, file);
+        verify(controller, never()).sendFile(eq(me), any(FileToSend.class));
+        verify(transferList, times(2)).addFileSender(any(User.class), any(FileToSend.class));
+        verify(messageController).showSystemMessage("Broadcasting image screenshot.png to 2 user(s)");
+    }
+
+    @Test
+    public void sendFileToAllUsersShouldSkipUsersThatCanNotReceiveWithoutAbortingBroadcast() throws CommandException {
+        final User user1 = new User("Alice", 111);
+        final User user2 = new User("Bob", 222);
+        userList.add(user1);
+        userList.add(user2);
+
+        final FileToSend file = FileToSend.fromBytes(new byte[] { 1, 2, 3 }, "screenshot.png");
+        final FileSender fileSender = mock(FileSender.class);
+        when(fileSender.getId()).thenReturn(7);
+        when(transferList.addFileSender(any(User.class), any(FileToSend.class))).thenReturn(fileSender);
+
+        doThrow(new CommandException("You can not send a file to a user that is away")).when(controller)
+                .sendFile(user1, file);
+
+        parser.sendFileToAllUsers(file);
+
+        verify(controller).sendFile(user1, file);
+        verify(controller).sendFile(user2, file);
+        verify(transferList).addFileSender(user2, file);
+        verify(transferList, never()).addFileSender(user1, file);
+        verify(messageController).showSystemMessage(
+                "Could not send image screenshot.png to Alice: You can not send a file to a user that is away");
     }
 
     /*

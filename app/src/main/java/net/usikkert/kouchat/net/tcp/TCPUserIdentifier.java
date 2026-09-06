@@ -57,7 +57,7 @@ public class TCPUserIdentifier implements TCPClientListener {
     private final Sleeper sleeper;
 
     @Nullable
-    private String message;
+    private volatile String message;
 
     public TCPUserIdentifier(final Controller controller, final Settings settings, final TCPClient client) {
         Validate.notNull(controller, "Controller can not be null");

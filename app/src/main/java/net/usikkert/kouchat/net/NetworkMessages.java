@@ -178,11 +178,65 @@ public class NetworkMessages {
     }
 
     /**
+     * Sends an expose message to a specific ip address, asking that client to identify itself.
+     * Used for manual ip connection.
+     *
+     * @param ipAddress The ip address to send the expose message to.
+     */
+    public void sendExposeToIp(final String ipAddress) {
+        final String msg = createMessage(EXPOSE);
+        networkService.sendMessageToIp(msg, ipAddress);
+    }
+
+    /**
      * Sends a message to identify this client.
      */
     public void sendExposingMessage() {
         final String msg = createMessage(EXPOSING) + me.getAwayMsg();
         networkService.sendMessageToAllUsers(msg);
+    }
+
+    /**
+     * Sends an exposing message to a specific ip address, responding to a manual ip connection request.
+     *
+     * @param ipAddress The ip address to send the exposing message to.
+     */
+    public void sendExposingToIp(final String ipAddress) {
+        final String msg = createMessage(EXPOSING) + me.getAwayMsg();
+        networkService.sendMessageToIp(msg, ipAddress);
+    }
+
+    /**
+     * Sends the client information (including the private chat and tcp ports) to a
+     * specific ip address, over unicast.
+     *
+     * <p>Used when answering a unicast expose request, so the peer learns our ports
+     * reliably even if the multicast copy of the CLIENT message was lost (common on
+     * WiFi, where multicast has no retransmission).</p>
+     *
+     * @param ipAddress The ip address to send the client info to.
+     */
+    public void sendClientToIp(final String ipAddress) {
+        final String msg = createMessage(CLIENT) +
+                "(" + me.getClient() + ")" +
+                "[" + (System.currentTimeMillis() - me.getLogonTime()) + "]" +
+                "{" + me.getOperatingSystem() + "}" +
+                "<" + me.getPrivateChatPort() + ">" +
+                "/" + me.getTcpChatPort() + "\\";
+
+        networkService.sendMessageToIp(msg, ipAddress);
+    }
+
+    /**
+     * Sends a request to establish a direct point-to-point (unicast) connection
+     * to a specific ip address. The receiver will register this client as a P2P peer
+     * and route subsequent messages via unicast instead of multicast.
+     *
+     * @param ipAddress The ip address to send the p2p connect request to.
+     */
+    public void sendP2pConnect(final String ipAddress) {
+        final String msg = createMessage(P2P_CONNECT);
+        networkService.sendMessageToIp(msg, ipAddress);
     }
 
     /**
@@ -352,6 +406,101 @@ public class NetworkMessages {
             checkNetwork();
             notifyUser("Failed to send private message to " + user.getNick() + ": " + privMsg);
         }
+    }
+
+    /**
+     * Sends this client's RSA public key to a peer, as part of the encryption handshake.
+     *
+     * <p>Sent over BOTH unicast UDP and TCP. The unicast UDP path works even when no TCP
+     * connection is established (the common case, since chat flows over multicast/unicast
+     * UDP). The TCP path covers the case where a TCP connection exists. The receiver's
+     * {@link MessageDeduplicator} forwards exactly one copy (it drops the multicast/unicast
+     * copy for tcp-enabled peers, expecting the TCP copy).</p>
+     *
+     * @param user The peer to send to.
+     * @param publicKeyBase64 The base64-encoded public key.
+     */
+    public void sendPubKey(final User user, final String publicKeyBase64) {
+        sendCrypto(createMessage(PUBKEY) + publicKeyBase64, user);
+    }
+
+    /**
+     * Asks a peer to send its public key.
+     *
+     * @param user The peer to request from.
+     */
+    public void sendKeyReq(final User user) {
+        sendCrypto(createMessage(KEYREQ), user);
+    }
+
+    /**
+     * Sends the RSA-wrapped AES session key plus a signature to a peer, signaling trust.
+     *
+     * @param user The peer to send to.
+     * @param wrappedKey Base64 RSA-OAEP-wrapped AES session key.
+     * @param signature Base64 SHA256withRSA signature.
+     */
+    public void sendKeyTrust(final User user, final String wrappedKey, final String signature) {
+        sendCrypto(createMessage(KEYTRUST) + wrappedKey + "|" + signature, user);
+    }
+
+    /**
+     * Acknowledges trust back to the peer so it can activate the encrypted channel.
+     *
+     * @param user The peer to acknowledge to.
+     */
+    public void sendKeyTrustAck(final User user) {
+        sendCrypto(createMessage(KEYTRUSTACK), user);
+    }
+
+    /**
+     * Tells a peer that this client declined to trust its key.
+     *
+     * @param user The peer to reject.
+     */
+    public void sendKeyReject(final User user) {
+        sendCrypto(createMessage(KEYREJECT), user);
+    }
+
+    /**
+     * Sends an encrypted private chat message to a peer over unicast (not broadcast).
+     * The color is sent in the clear; only the message text is encrypted.
+     *
+     * @param user The peer to send to.
+     * @param ciphertextBase64 The base64 AES-GCM ciphertext of the message.
+     * @param color The sender's chosen color.
+     */
+    public void sendEncryptedPrivateMessage(final User user, final String ciphertextBase64, final int color) {
+        final String msg = createMessage(ENCPRIVMSG) +
+                "(" + user.getCode() + ")" +
+                "[" + color + "]" +
+                ciphertextBase64;
+
+        sendCrypto(msg, user);
+    }
+
+    /**
+     * Sends a crypto message over both unicast UDP and TCP, so it arrives regardless of
+     * whether a TCP connection exists. The deduplicator on the receiver forwards one copy.
+     *
+     * @param msg The full message string.
+     * @param user The peer to send to.
+     */
+    private void sendCrypto(final String msg, final User user) {
+        networkService.sendMessageToIp(msg, user.getIpAddress());
+        networkService.sendMessageToUserViaTcp(msg, user);
+    }
+
+    /**
+     * Sends an encrypted group chat message to a peer over unicast (P2P mode).
+     * Not multicast: the message goes only to this one trusted peer. Sent over both
+     * unicast UDP and TCP (see {@link #sendCrypto(String, User)}).
+     *
+     * @param user The peer to send to.
+     * @param ciphertextBase64 The base64 AES-GCM ciphertext of the message.
+     */
+    public void sendEncryptedChatMessage(final User user, final String ciphertextBase64) {
+        sendCrypto(createMessage(ENCMSG) + ciphertextBase64, user);
     }
 
     /**

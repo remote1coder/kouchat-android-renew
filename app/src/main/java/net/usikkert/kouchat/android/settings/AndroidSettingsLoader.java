@@ -17,13 +17,14 @@
  *                                                                         *
  *   You should have received a copy of the GNU Lesser General Public      *
  *   License along with KouChat.                                           *
- *   If not, see <http://www.gnu.org/licenses/>.                           *
+ *   If not, see <http://www.gnu.org/licenses/lgpl-3.0.txt>.               *
  ***************************************************************************/
 
 package net.usikkert.kouchat.android.settings;
 
 import net.usikkert.kouchat.android.R;
 import net.usikkert.kouchat.misc.User;
+import net.usikkert.kouchat.settings.NetworkMode;
 import net.usikkert.kouchat.util.Tools;
 import net.usikkert.kouchat.util.Validate;
 
@@ -41,6 +42,7 @@ import android.preference.PreferenceManager;
  *   <li>Own color</li>
  *   <li>System color</li>
  *   <li>Wake lock</li>
+ *   <li>Network interface</li>
  *   <li>Notification light</li>
  *   <li>Notification sound</li>
  *   <li>Notification vibration</li>
@@ -67,6 +69,8 @@ public class AndroidSettingsLoader {
         loadOwnColor(context, preferences, settings);
         loadSystemColor(context, preferences, settings);
         loadWakeLock(context, preferences, settings);
+        loadNetworkInterface(context, preferences, settings);
+        loadNetworkMode(context, preferences, settings);
 
         loadNotificationLight(context, preferences, settings);
         loadNotificationSound(context, preferences, settings);
@@ -120,6 +124,22 @@ public class AndroidSettingsLoader {
         final boolean wakeLockEnabled = preferences.getBoolean(wakeLockKey, false);
 
         settings.setWakeLockEnabled(wakeLockEnabled);
+    }
+
+    private void loadNetworkInterface(final Context context, final SharedPreferences preferences,
+                                      final AndroidSettings settings) {
+        final String preferenceKey = context.getString(R.string.settings_network_interface_key);
+        final String networkInterface = preferences.getString(preferenceKey, "");
+
+        settings.setNetworkInterface(networkInterface != null && !networkInterface.isEmpty() ? networkInterface : null);
+    }
+
+    private void loadNetworkMode(final Context context, final SharedPreferences preferences,
+                                 final AndroidSettings settings) {
+        final String preferenceKey = context.getString(R.string.settings_network_mode_key);
+        final String value = preferences.getString(preferenceKey, "multicast");
+        // Older versions stored "broadcast" for what was actually multicast; fromKey handles that.
+        settings.setNetworkMode(NetworkMode.fromKey(value));
     }
 
     private void loadNotificationLight(final Context context, final SharedPreferences preferences,

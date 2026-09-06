@@ -112,7 +112,18 @@ public interface MessageResponder {
      * A user has requested information about the other clients that are logged
      * on to the chat.
      */
-    void exposeRequested();
+    void exposeRequested(String ipAddress);
+
+    /**
+     * A user has requested a direct point-to-point (unicast) connection.
+     *
+     * <p>The receiver should register this user as a P2P peer so that subsequent
+     * messages are sent via unicast instead of multicast.</p>
+     *
+     * @param user The user requesting the p2p connection.
+     * @param ipAddress The ip address of the user.
+     */
+    void p2pConnect(User user, String ipAddress);
 
     /**
      * A user has started or stopped writing.
@@ -137,7 +148,7 @@ public interface MessageResponder {
      * @param userCode The unique code of the user who sent the idle message.
      * @param ipAddress The IP address of that user.
      */
-    void userIdle(int userCode, String ipAddress);
+    void userIdle(int userCode, String nick, String ipAddress);
 
     /**
      * A user is asking the application user to receive a file.
@@ -180,4 +191,59 @@ public interface MessageResponder {
      * @param tcpChatPort The port to use for sending chat messages to this user using tcp.
      */
     void clientInfo(int userCode, String client, long timeSinceLogon, String operatingSystem, int privateChatPort, int tcpChatPort);
+
+    /**
+     * A peer's RSA public key (base64) has arrived as part of the key exchange.
+     *
+     * @param userCode The unique code of the user who sent the key.
+     * @param publicKeyBase64 The base64-encoded X.509 public key.
+     */
+    void pubKeyArrived(int userCode, String publicKeyBase64);
+
+    /**
+     * A peer is requesting this client's public key.
+     *
+     * @param userCode The unique code of the requesting user.
+     */
+    void keyReqArrived(int userCode);
+
+    /**
+     * A peer trusts this client's key and carries the wrapped AES session key.
+     *
+     * @param userCode The unique code of the user who sent the trust.
+     * @param wrappedKey Base64 RSA-OAEP-wrapped AES session key.
+     * @param signature Base64 SHA256withRSA signature.
+     */
+    void keyTrustArrived(int userCode, String wrappedKey, String signature);
+
+    /**
+     * A peer acknowledges trust back so this client can activate the channel.
+     *
+     * @param userCode The unique code of the acknowledging user.
+     */
+    void keyTrustAckArrived(int userCode);
+
+    /**
+     * A peer declined to trust this client's key.
+     *
+     * @param userCode The unique code of the rejecting user.
+     */
+    void keyRejectArrived(int userCode);
+
+    /**
+     * An encrypted private chat message has arrived.
+     *
+     * @param userCode The unique code of the sender.
+     * @param ciphertextBase64 The base64 AES-GCM ciphertext.
+     * @param color The color the sender chose for the message (sent in the clear).
+     */
+    void encryptedPrivateMessageArrived(int userCode, String ciphertextBase64, int color);
+
+    /**
+     * An encrypted group chat message has arrived (P2P mode).
+     *
+     * @param userCode The unique code of the sender.
+     * @param ciphertextBase64 The base64 AES-GCM ciphertext.
+     */
+    void encryptedChatMessageArrived(int userCode, String ciphertextBase64);
 }

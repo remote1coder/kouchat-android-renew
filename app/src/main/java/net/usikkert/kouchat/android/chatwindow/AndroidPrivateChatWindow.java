@@ -73,6 +73,17 @@ public class AndroidPrivateChatWindow implements PrivateChatWindow {
     }
 
     @Override
+    public void appendImage(final byte[] imageBytes, final String label, final int color) {
+        Validate.notNull(imageBytes, "Image bytes can not be null");
+
+        final CharSequence styledPrivateMessage = messageStyler.styleAndAppendImage(imageBytes, label, color);
+
+        if (privateChatController != null) {
+            privateChatController.appendToPrivateChat(styledPrivateMessage);
+        }
+    }
+
+    @Override
     public User getUser() {
         return user;
     }

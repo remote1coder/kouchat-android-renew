@@ -25,7 +25,7 @@ package net.usikkert.kouchat.android.component;
 import net.usikkert.kouchat.android.R;
 
 import android.content.Context;
-import android.support.v7.preference.EditTextPreference;
+import androidx.preference.EditTextPreference;
 import android.util.AttributeSet;
 
 /**
@@ -52,7 +52,7 @@ public class NickNameEditTextPreference extends EditTextPreference {
     }
 
     public NickNameEditTextPreference(final Context context, final AttributeSet attrs) {
-        this(context, attrs, R.attr.editTextPreferenceStyle);
+        this(context, attrs, android.R.attr.editTextPreferenceStyle);
     }
 
     public NickNameEditTextPreference(final Context context) {

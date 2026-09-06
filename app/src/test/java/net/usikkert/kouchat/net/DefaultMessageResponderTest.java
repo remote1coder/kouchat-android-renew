@@ -180,7 +180,7 @@ public class DefaultMessageResponderTest {
 
         responder.messageArrived(100, "msg", 200);
 
-        verifyZeroInteractions(messageController, userInterface);
+        verifyNoMoreInteractions(messageController, userInterface);
     }
 
     @Test
@@ -189,7 +189,7 @@ public class DefaultMessageResponderTest {
 
         responder.messageArrived(100, "msg", 200);
 
-        verifyZeroInteractions(messageController, userInterface);
+        verifyNoMoreInteractions(messageController, userInterface);
     }
 
     @Test
@@ -198,7 +198,7 @@ public class DefaultMessageResponderTest {
 
         responder.userLogOff(100);
 
-        verifyZeroInteractions(messageController);
+        verifyNoInteractions(messageController);
         verify(controller, never()).removeUser(any(User.class), anyString());
     }
 
@@ -258,14 +258,14 @@ public class DefaultMessageResponderTest {
     public void topicChangedShouldDoNothingWhenTimeIsZero() {
         responder.topicChanged(300, "Nothing", "Harry", 0);
 
-        verifyZeroInteractions(messageController, userInterface);
+        verifyNoMoreInteractions(messageController, userInterface);
     }
 
     @Test
     public void topicChangedShouldDoNothingWhenNickNameIsEmpty() {
         responder.topicChanged(300, "Nothing", "", 1000);
 
-        verifyZeroInteractions(messageController, userInterface);
+        verifyNoMoreInteractions(messageController, userInterface);
     }
 
     @Test
@@ -303,7 +303,7 @@ public class DefaultMessageResponderTest {
 
         responder.topicChanged(300, "Old topic", "Niles", 2000); // Newer timestamp, same topic
 
-        verifyZeroInteractions(messageController, userInterface);
+        verifyNoMoreInteractions(messageController, userInterface);
         verifyTopic(topic, "Old topic", "Niles", 1000);
     }
 
@@ -314,7 +314,7 @@ public class DefaultMessageResponderTest {
 
         responder.topicChanged(300, "Older topic", "Niles", 1000); // Older timestamp, must be old topic
 
-        verifyZeroInteractions(messageController, userInterface);
+        verifyNoMoreInteractions(messageController, userInterface);
         verifyTopic(topic, "Old topic", "Niles", 2000);
     }
 
@@ -340,7 +340,7 @@ public class DefaultMessageResponderTest {
 
         responder.topicChanged(300, null, "Harry", System.currentTimeMillis());
 
-        verifyZeroInteractions(messageController, userInterface);
+        verifyNoMoreInteractions(messageController, userInterface);
         verifyTopic(topic, "", "", 0);
     }
 
@@ -352,7 +352,7 @@ public class DefaultMessageResponderTest {
 
         responder.topicChanged(300, null, "Harry", 1000);
 
-        verifyZeroInteractions(messageController, userInterface);
+        verifyNoMoreInteractions(messageController, userInterface);
         verifyTopic(topic, "Current topic", "Harry", 2000);
     }
 

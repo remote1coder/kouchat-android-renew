@@ -77,6 +77,9 @@ public class Settings {
     /** Name of the network interface to use, or <code>null</code> to choose automatically. */
     private String networkInterface;
 
+    /** The network mode: multicast (default), broadcast, unicast or p2p encrypted mesh. */
+    private NetworkMode networkMode;
+
     // Settings from startup arguments
 
     /** If private chat is disabled. */
@@ -107,6 +110,7 @@ public class Settings {
         smileys = true;
         systemTray = true;
         lookAndFeel = "";
+        networkMode = NetworkMode.MULTICAST;
     }
 
     /**
@@ -409,5 +413,23 @@ public class Settings {
      */
     public void setNetworkInterface(final String networkInterface) {
         this.networkInterface = networkInterface;
+    }
+
+    /**
+     * Gets the network mode (multicast, broadcast, unicast or p2p).
+     *
+     * @return The network mode.
+     */
+    public NetworkMode getNetworkMode() {
+        return networkMode;
+    }
+
+    /**
+     * Sets the network mode (multicast, broadcast, unicast or p2p).
+     *
+     * @param networkMode The network mode to use.
+     */
+    public void setNetworkMode(final NetworkMode networkMode) {
+        this.networkMode = networkMode;
     }
 }

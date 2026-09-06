@@ -30,7 +30,7 @@ import net.usikkert.kouchat.util.Validate;
 import android.app.Activity;
 import android.content.DialogInterface;
 import android.content.res.Resources;
-import android.support.v7.app.AlertDialog;
+import androidx.appcompat.app.AlertDialog;
 import android.util.TypedValue;
 import android.widget.TextView;
 

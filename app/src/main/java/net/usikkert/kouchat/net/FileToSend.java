@@ -24,6 +24,7 @@ package net.usikkert.kouchat.net;
 
 import net.usikkert.kouchat.util.Validate;
 
+import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
@@ -56,6 +57,26 @@ public class FileToSend {
         this.inputStreamOpener = inputStreamOpener;
         this.name = name;
         this.length = length;
+    }
+
+    /**
+     * Creates a {@link FileToSend} from in-memory bytes, without needing a
+     * file on disk. Each call to {@link #getInputStream()} returns a fresh
+     * stream over the same data, so the same instance can be sent to several
+     * users without sharing stream state.
+     *
+     * <p>This is used for sending clipboard screenshots and other images
+     * that only exist in memory.</p>
+     *
+     * @param data The raw bytes to send.
+     * @param name The name of the "file" presented to the receiver.
+     * @return A file to send backed by the given bytes.
+     */
+    public static FileToSend fromBytes(final byte[] data, final String name) {
+        Validate.notNull(data, "File data can not be null");
+        Validate.notEmpty(name, "File name can not be null or empty");
+
+        return new FileToSend(new ByteArrayInputStreamOpener(data), name, data.length);
     }
 
     public long length() {
@@ -113,6 +134,20 @@ public class FileToSend {
         @Override
         public InputStream open() throws FileNotFoundException {
             return new FileInputStream(file);
+        }
+    }
+
+    static class ByteArrayInputStreamOpener implements InputStreamOpener {
+
+        private final byte[] data;
+
+        ByteArrayInputStreamOpener(final byte[] data) {
+            this.data = data;
+        }
+
+        @Override
+        public InputStream open() throws FileNotFoundException {
+            return new ByteArrayInputStream(data);
         }
     }
 }
