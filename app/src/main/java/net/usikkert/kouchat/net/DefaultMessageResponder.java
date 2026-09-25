@@ -200,9 +200,7 @@ public class DefaultMessageResponder implements MessageResponder {
         controller.getUserList().add(newUser);
         msgController.showSystemMessage(newUser.getNick() + " logged on from " + newUser.getIpAddress());
 
-        // Unicast our client info (with the ports) to the new user, so the ports
-        // are exchanged even if the multicast copy of the CLIENT message is lost.
-        controller.sendClientToIp(newUser.getIpAddress());
+        exchangeClientInfo(newUser.getIpAddress());
 
         if (controller.shouldMeshWithNewUser(newUser)) {
             controller.attemptP2pMesh(newUser);
@@ -234,9 +232,7 @@ public class DefaultMessageResponder implements MessageResponder {
         controller.getUserList().add(newUser);
         msgController.showSystemMessage(newUser.getNick() + " showed up unexpectedly from " + newUser.getIpAddress());
 
-        // Unicast our client info (with the ports) to the new user, so the ports
-        // are exchanged even if the multicast copy of the CLIENT message is lost.
-        controller.sendClientToIp(newUser.getIpAddress());
+        exchangeClientInfo(newUser.getIpAddress());
 
         if (controller.shouldMeshWithNewUser(newUser)) {
             controller.attemptP2pMesh(newUser);
@@ -439,9 +435,7 @@ public class DefaultMessageResponder implements MessageResponder {
             controller.getUserList().add(user);
             controller.sendExposingToIp(ipAddress);
 
-            // Unicast our client info (with the ports) to the new user, so the ports
-            // are exchanged even if the multicast copy of the CLIENT message is lost.
-            controller.sendClientToIp(ipAddress);
+            exchangeClientInfo(ipAddress);
 
             if (controller.shouldMeshWithNewUser(user)) {
                 controller.attemptP2pMesh(user);
@@ -591,6 +585,21 @@ public class DefaultMessageResponder implements MessageResponder {
      * @param fileName The name of the file.
      * @return True if the file should be automatically accepted.
      */
+    /**
+     * Exchanges the client info (with the chat ports) with a newly added user:
+     * our client info is unicast directly to the peer, and an expose request
+     * asks the peer to unicast its client info back. The peer's client info may
+     * never arrive otherwise - it is sent once at logon over multicast, which is
+     * easily lost, and a client info that arrives before the user is known is
+     * dropped. Without the ports, tcp chat and file transfers to the peer fail.
+     *
+     * @param ipAddress The ip address of the newly added user.
+     */
+    private void exchangeClientInfo(final String ipAddress) {
+        controller.sendClientToIp(ipAddress);
+        controller.sendExposeRequestToIp(ipAddress);
+    }
+
     private boolean shouldAutoAccept(final User sender, final String fileName) {
         final AutoAcceptFiles scope = settings.getAutoAcceptFiles();
 
@@ -832,7 +841,10 @@ public class DefaultMessageResponder implements MessageResponder {
         }
 
         else {
-            LOG.severe("Could not find user: %s", userCode);
+            // Expected when the client info arrives before the user is discovered
+            // (the peer sends it when it adds us). An expose request asks the peer
+            // to re-send it once the user has been added.
+            LOG.fine("Client info arrived for an unknown user: %s. Ignoring it for now.", userCode);
         }
     }
 

@@ -62,7 +62,9 @@ public class TCPConnector {
         waitForPort();
 
         if (user.getTcpChatPort() <= 0) {
-            LOG.warning("User has no tcp port. Giving up.");
+            // Expected while the peer's client info has not arrived yet; the
+            // connect is retried when the user is seen again.
+            LOG.fine("User has no tcp port yet. Giving up for now.");
             return null;
         }
 

@@ -119,7 +119,9 @@ public class TCPConnectionHandler implements TCPConnectionListener, TCPReceiverL
                 final Socket socket = tcpConnector.connect();
 
                 if (socket == null) {
-                    LOG.warning("Add user done. Unable to connect using tcp. Giving up."); // Never tries again
+                    // Usually the peer's tcp port is not known yet; the connect is
+                    // retried the next time the user is seen.
+                    LOG.fine("Add user done. Unable to connect using tcp yet. Giving up for now.");
                     return;
                 }
 

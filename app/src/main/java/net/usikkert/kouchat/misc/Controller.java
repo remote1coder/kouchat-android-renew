@@ -612,6 +612,18 @@ public class Controller implements NetworkConnectionListener, net.usikkert.kouch
     }
 
     /**
+     * Sends an expose request to a specific ip address. The peer identifies itself,
+     * and - importantly - unicasts its client info (with the chat ports) back to
+     * the requester, so the ports are learned even when the peer's own CLIENT
+     * message (multicast, at logon time) was lost.
+     *
+     * @param ipAddress The ip address to send the expose request to.
+     */
+    public void sendExposeRequestToIp(final String ipAddress) {
+        networkMessages.sendExposeToIp(ipAddress);
+    }
+
+    /**
      * Sends a message over the network to ask for the current topic.
      */
     public void sendGetTopicMessage() {
