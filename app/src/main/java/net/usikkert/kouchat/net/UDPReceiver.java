@@ -85,11 +85,13 @@ public class UDPReceiver implements Runnable {
         while (connected) {
             try {
                 final DatagramPacket packet = new DatagramPacket(
-                        new byte[Constants.NETWORK_PACKET_SIZE], Constants.NETWORK_PACKET_SIZE);
+                        new byte[Constants.NETWORK_PACKET_MAX_SIZE], Constants.NETWORK_PACKET_MAX_SIZE);
 
                 udpSocket.receive(packet);
                 final String ip = packet.getAddress().getHostAddress();
-                final String message = new String(packet.getData(), Constants.MESSAGE_CHARSET).trim();
+                // Use the actual length of the received datagram, not the buffer size
+                final String message = new String(packet.getData(), 0, packet.getLength(),
+                        Constants.MESSAGE_CHARSET).trim();
                 LOG.log(Level.FINE, "Message arrived from " + ip + ": " + message);
 
                 if (listener != null) {

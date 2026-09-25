@@ -48,6 +48,7 @@ import net.usikkert.kouchat.net.NetworkService;
 import net.usikkert.kouchat.net.PrivateMessageParser;
 import net.usikkert.kouchat.net.PrivateMessageResponder;
 import net.usikkert.kouchat.net.TransferList;
+import net.usikkert.kouchat.settings.MulticastUnicastMode;
 import net.usikkert.kouchat.settings.NetworkMode;
 import net.usikkert.kouchat.settings.Settings;
 import net.usikkert.kouchat.settings.SettingsSaver;
@@ -491,6 +492,7 @@ public class Controller implements NetworkConnectionListener, net.usikkert.kouch
 
         user.setOnline(false);
         cancelFileTransfers(user);
+        removeP2pPeer(user.getIpAddress());
         userList.remove(user);
 
         if (user.getPrivchat() != null) {
@@ -660,15 +662,14 @@ public class Controller implements NetworkConnectionListener, net.usikkert.kouch
      * Sends an unencrypted group chat message to every online peer, one unicast
      * per peer. Used in UNICAST mode, where group chat must not be multicast.
      *
-     * <p>Messages that fit in a udp packet are sent over udp unicast; longer
-     * messages go over the tcp connection to each peer instead.</p>
+     * <p>The message gets the same wire format as in multicast mode
+     * ({@code code!MSG#nick:[color]text}), so the receivers can parse it.</p>
      *
      * @param msg The message to send.
      * @throws CommandException If no peer is online.
      */
     private void sendChatMessageToPeers(final String msg) throws CommandException {
         final UserList userList = getUserList();
-        final boolean fitsUdp = Tools.getBytes(msg) <= Constants.MESSAGE_MAX_BYTES;
         boolean sent = false;
 
         synchronized (userList) {
@@ -679,14 +680,7 @@ public class Controller implements NetworkConnectionListener, net.usikkert.kouch
                     continue;
                 }
 
-                if (fitsUdp) {
-                    if (networkService.sendChatMessageToIp(msg, user.getIpAddress())) {
-                        sent = true;
-                    }
-                }
-
-                else {
-                    networkService.sendMessageToUserViaTcp(msg, user);
+                if (networkMessages.sendChatMessageToUser(msg, user)) {
                     sent = true;
                 }
             }
@@ -1122,6 +1116,85 @@ public class Controller implements NetworkConnectionListener, net.usikkert.kouch
     }
 
     /**
+     * Whether the client is in the multicast or broadcast network mode, where
+     * group chat is sent to everyone at once. Automatic unicast channels can
+     * add a redundant point-to-point copy for these modes.
+     *
+     * @return True if multicast or broadcast mode.
+     */
+    public boolean isMulticastBroadcastMode() {
+        final NetworkMode networkMode = settings.getNetworkMode();
+        return networkMode == NetworkMode.MULTICAST || networkMode == NetworkMode.BROADCAST;
+    }
+
+    /**
+     * Whether a unicast channel should be established automatically with a newly
+     * discovered user. Always true in the mesh modes (P2P and UNICAST). In the
+     * multicast and broadcast modes it follows the multicast unicast setting:
+     * all users, only users with an already trusted key, or never.
+     *
+     * @param user The newly discovered user.
+     * @return True if a unicast channel should be established with the user.
+     */
+    public boolean shouldMeshWithNewUser(final User user) {
+        if (isMeshMode()) {
+            return true;
+        }
+
+        if (!isMulticastBroadcastMode()) {
+            return false;
+        }
+
+        final MulticastUnicastMode mode = settings.getMulticastUnicastMode();
+
+        if (mode == MulticastUnicastMode.OFF) {
+            return false;
+        }
+
+        if (mode == MulticastUnicastMode.ALL) {
+            return true;
+        }
+
+        // TRUSTED: recognize the peer by nick name, since the user code is
+        // random per session and the key fingerprint is not known yet.
+        return trustedKeys.isNickTrusted(user.getNick());
+    }
+
+    /**
+     * Whether the encrypted handshake should be initiated automatically for
+     * an automatic unicast channel: in P2P mode always, and in the multicast
+     * and broadcast modes when the corresponding setting is enabled.
+     *
+     * @return True if the handshake should be initiated.
+     */
+    private boolean shouldAutoEncryptMesh() {
+        if (isP2pMode()) {
+            return true;
+        }
+
+        return isMulticastBroadcastMode() && settings.isAutoEncryptUnicast();
+    }
+
+    /**
+     * Applies the multicast unicast settings to all currently online users, by
+     * establishing a unicast channel with each user that qualifies. Meant to be
+     * called after the settings have changed.
+     */
+    public void applyMulticastUnicastSettings() {
+        final UserList userList = getUserList();
+
+        synchronized (userList) {
+            for (int i = 0; i < userList.size(); i++) {
+                final User user = userList.get(i);
+
+                if (!user.isMe() && user.isOnline() && shouldMeshWithNewUser(user)) {
+                    attemptP2pMesh(user);
+                }
+            }
+        }
+    }
+
+    /**
      * Gets the current network mode.
      *
      * @return The network mode.
@@ -1162,6 +1235,11 @@ public class Controller implements NetworkConnectionListener, net.usikkert.kouch
      * Registers a peer for the unicast mesh (so discovery/control messages also reach
      * them directly), and initiates an encrypted handshake if P2P mode is active.
      *
+     * <p>In the multicast and broadcast modes, this adds a redundant unicast
+     * channel: group chat is sent to the peer directly in addition to the
+     * multicast copy, which keeps the chat working on networks that drop
+     * multicast packets. The receiving side removes the duplicate.</p>
+     *
      * @param user The peer to mesh with.
      */
     public void attemptP2pMesh(final User user) {
@@ -1171,7 +1249,7 @@ public class Controller implements NetworkConnectionListener, net.usikkert.kouch
 
         networkService.addP2pPeer(user.getIpAddress());
 
-        if (isP2pMode() && !cryptoManager.isChannelActive(user) && !cryptoManager.isUnsupported(user)) {
+        if (shouldAutoEncryptMesh() && !cryptoManager.isChannelActive(user) && !cryptoManager.isUnsupported(user)) {
             cryptoManager.initiateHandshake(user);
         }
     }

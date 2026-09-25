@@ -10,7 +10,7 @@
   <ScrollView android:id="@+id/mainChatScroll"
               android:layout_width="wrap_content"
               android:layout_height="fill_parent"
-              android:background="#fff"
+              android:background="@color/chat_background"
               android:layout_alignParentLeft="true"
               android:layout_toLeftOf="@+id/mainChatUserList"
               android:layout_above="@+id/mainChatStatusBar">
@@ -33,7 +33,7 @@
   <TextView android:id="@+id/mainChatStatusBar"
             android:layout_width="fill_parent"
             android:layout_height="wrap_content"
-            android:background="#eee"
+            android:background="@color/status_bar_background"
             android:paddingLeft="4dip"
             android:paddingRight="4dip"
             android:paddingTop="2dip"

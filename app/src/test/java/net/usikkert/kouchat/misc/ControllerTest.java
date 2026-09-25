@@ -714,11 +714,11 @@ public class ControllerTest {
         otherUser.setIpAddress("192.168.1.5");
         userList.add(otherUser);
 
-        when(networkService.sendChatMessageToIp("the message", "192.168.1.5")).thenReturn(true);
+        when(networkMessages.sendChatMessageToUser("the message", otherUser)).thenReturn(true);
 
         controller.sendChatMessage("the message");
 
-        verify(networkService).sendChatMessageToIp("the message", "192.168.1.5");
+        verify(networkMessages).sendChatMessageToUser("the message", otherUser);
         verify(networkMessages, never()).sendChatMessage(anyString());
     }
 

@@ -51,4 +51,66 @@ public class FileReceiverTest {
         assertEquals("chickens.jpg", fileReceiver.getFileName());
         assertEquals("chickens.jpg", fileReceiver.getFile().getName());
     }
+
+    @Test
+    public void markTimedOutShouldReturnTrueAndCancelWhenUnanswered() {
+        final FileReceiver fileReceiver = new FileReceiver(new User("Test", 123), new File("cows.gif"), 100, 1);
+
+        assertFalse(fileReceiver.isAnswered());
+        assertFalse(fileReceiver.isTimedOut());
+        assertFalse(fileReceiver.isCanceled());
+
+        assertTrue(fileReceiver.markTimedOut());
+
+        assertTrue(fileReceiver.isAnswered());
+        assertTrue(fileReceiver.isTimedOut());
+        assertTrue(fileReceiver.isCanceled());
+
+        // A second attempt loses the race and does nothing
+        assertFalse(fileReceiver.markTimedOut());
+        assertTrue(fileReceiver.isTimedOut());
+    }
+
+    @Test
+    public void markTimedOutShouldReturnFalseAfterAccept() {
+        final FileReceiver fileReceiver = new FileReceiver(new User("Test", 123), new File("cows.gif"), 100, 1);
+        fileReceiver.accept();
+
+        assertTrue(fileReceiver.isAnswered());
+        assertFalse(fileReceiver.markTimedOut());
+        assertFalse(fileReceiver.isTimedOut());
+    }
+
+    @Test
+    public void markTimedOutShouldReturnFalseAfterReject() {
+        final FileReceiver fileReceiver = new FileReceiver(new User("Test", 123), new File("cows.gif"), 100, 1);
+        fileReceiver.reject();
+
+        assertTrue(fileReceiver.isAnswered());
+        assertFalse(fileReceiver.markTimedOut());
+        assertFalse(fileReceiver.isTimedOut());
+    }
+
+    @Test
+    public void markTimedOutShouldReturnFalseAfterMarkAnswered() {
+        final FileReceiver fileReceiver = new FileReceiver(new User("Test", 123), new File("cows.gif"), 100, 1);
+        fileReceiver.markAnswered();
+
+        assertTrue(fileReceiver.isAnswered());
+        assertFalse(fileReceiver.isAccepted());
+        assertFalse(fileReceiver.isRejected());
+        assertFalse(fileReceiver.markTimedOut());
+        assertFalse(fileReceiver.isTimedOut());
+    }
+
+    @Test
+    public void markTimedOutShouldReturnFalseAfterCancel() {
+        final FileReceiver fileReceiver = new FileReceiver(new User("Test", 123), new File("cows.gif"), 100, 1);
+        fileReceiver.cancel();
+
+        assertTrue(fileReceiver.isAnswered());
+        assertTrue(fileReceiver.isCanceled());
+        assertFalse(fileReceiver.markTimedOut());
+        assertFalse(fileReceiver.isTimedOut());
+    }
 }

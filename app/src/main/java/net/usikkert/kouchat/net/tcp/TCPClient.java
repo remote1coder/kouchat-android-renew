@@ -90,7 +90,15 @@ public class TCPClient implements Runnable {
         }
     }
 
-    public void send(final String message) {
+    /**
+     * Sends a message over the connection. Thread-safe: several threads can
+     * send at the same time (network threads, ui threads, the crypto
+     * handshake), and unsynchronized writes would interleave the length
+     * prefix and the payload of concurrent messages on the stream.
+     *
+     * @param message The message to send.
+     */
+    public synchronized void send(final String message) {
         if (!connected || outputStream == null) {
             return;
         }

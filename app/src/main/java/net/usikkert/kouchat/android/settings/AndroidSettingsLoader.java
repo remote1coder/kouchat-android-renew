@@ -24,7 +24,10 @@ package net.usikkert.kouchat.android.settings;
 
 import net.usikkert.kouchat.android.R;
 import net.usikkert.kouchat.misc.User;
+import net.usikkert.kouchat.settings.AutoAcceptFiles;
+import net.usikkert.kouchat.settings.MulticastUnicastMode;
 import net.usikkert.kouchat.settings.NetworkMode;
+import net.usikkert.kouchat.settings.ThemeMode;
 import net.usikkert.kouchat.util.Tools;
 import net.usikkert.kouchat.util.Validate;
 
@@ -71,6 +74,12 @@ public class AndroidSettingsLoader {
         loadWakeLock(context, preferences, settings);
         loadNetworkInterface(context, preferences, settings);
         loadNetworkMode(context, preferences, settings);
+        loadThemeMode(context, preferences, settings);
+        loadDarkStartHour(context, preferences, settings);
+        loadDarkEndHour(context, preferences, settings);
+        loadAutoAcceptFiles(context, preferences, settings);
+        loadMulticastUnicastMode(context, preferences, settings);
+        loadAutoEncryptUnicast(context, preferences, settings);
 
         loadNotificationLight(context, preferences, settings);
         loadNotificationSound(context, preferences, settings);
@@ -140,6 +149,76 @@ public class AndroidSettingsLoader {
         final String value = preferences.getString(preferenceKey, "multicast");
         // Older versions stored "broadcast" for what was actually multicast; fromKey handles that.
         settings.setNetworkMode(NetworkMode.fromKey(value));
+    }
+
+    private void loadThemeMode(final Context context, final SharedPreferences preferences,
+                               final AndroidSettings settings) {
+        final String preferenceKey = context.getString(R.string.settings_theme_mode_key);
+        final String value = preferences.getString(preferenceKey, "light");
+
+        settings.setThemeMode(ThemeMode.fromKey(value));
+    }
+
+    private void loadDarkStartHour(final Context context, final SharedPreferences preferences,
+                                   final AndroidSettings settings) {
+        final String preferenceKey = context.getString(R.string.settings_dark_start_hour_key);
+        final int hour = getHour(preferences, preferenceKey, 18);
+
+        settings.setThemeDarkStartHour(hour);
+    }
+
+    private void loadDarkEndHour(final Context context, final SharedPreferences preferences,
+                                 final AndroidSettings settings) {
+        final String preferenceKey = context.getString(R.string.settings_dark_end_hour_key);
+        final int hour = getHour(preferences, preferenceKey, 9);
+
+        settings.setThemeDarkEndHour(hour);
+    }
+
+    private int getHour(final SharedPreferences preferences, final String preferenceKey, final int defaultHour) {
+        final String value = preferences.getString(preferenceKey, null);
+
+        if (value == null) {
+            return defaultHour;
+        }
+
+        try {
+            final int hour = Integer.parseInt(value);
+
+            if (hour >= 0 && hour <= 23) {
+                return hour;
+            }
+        }
+
+        catch (final NumberFormatException e) {
+            // Fall through to the default below
+        }
+
+        return defaultHour;
+    }
+
+    private void loadAutoAcceptFiles(final Context context, final SharedPreferences preferences,
+                                     final AndroidSettings settings) {
+        final String preferenceKey = context.getString(R.string.settings_auto_accept_files_key);
+        final String value = preferences.getString(preferenceKey, "images");
+
+        settings.setAutoAcceptFiles(AutoAcceptFiles.fromKey(value));
+    }
+
+    private void loadMulticastUnicastMode(final Context context, final SharedPreferences preferences,
+                                          final AndroidSettings settings) {
+        final String preferenceKey = context.getString(R.string.settings_multicast_unicast_key);
+        final String value = preferences.getString(preferenceKey, "all");
+
+        settings.setMulticastUnicastMode(MulticastUnicastMode.fromKey(value));
+    }
+
+    private void loadAutoEncryptUnicast(final Context context, final SharedPreferences preferences,
+                                        final AndroidSettings settings) {
+        final String preferenceKey = context.getString(R.string.settings_auto_encrypt_unicast_key);
+        final boolean enabled = preferences.getBoolean(preferenceKey, true);
+
+        settings.setAutoEncryptUnicast(enabled);
     }
 
     private void loadNotificationLight(final Context context, final SharedPreferences preferences,

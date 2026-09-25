@@ -26,6 +26,25 @@ This fork extends KouChat Android v1.5.0 with the following features (details in
   connections are re-established automatically if the first attempt failed.
 - **Inline images**: images pasted into a chat on the desktop client are shown
   directly in the chat.
+- **Dark / night mode** (Settings -> Theme mode): switch between light and dark
+  theme **automatically by time of day** (default 18:00–09:00, configurable),
+  by **following the system theme**, or **manually**.
+- **File transfer timeouts**: a file transfer request that is not answered
+  within 60 seconds is automatically rejected, so unanswered requests no longer
+  block transfers.
+- **Auto-accept files from encrypted users** (Settings -> Auto-accept files):
+  when the end-to-end encrypted channel with the sender is active, incoming
+  files are accepted automatically — images only by default, with an option for
+  all files.
+- **Automatic unicast channels** (Settings -> Automatic unicast channels): on
+  networks where the router drops multicast packets (messages disappearing in
+  one direction), every message is also sent directly to each peer, and
+  duplicates are removed on the receiving side. Works with all new devices
+  (default), trusted devices only, or off; the encrypted handshake can be
+  initiated automatically.
+- **Trusted devices are remembered across restarts**: the key fingerprint is
+  the stable identity, so a returning peer with the same key is trusted
+  without asking again.
 
 
 

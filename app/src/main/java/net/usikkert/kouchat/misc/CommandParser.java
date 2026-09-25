@@ -25,6 +25,8 @@ package net.usikkert.kouchat.misc;
 import java.io.File;
 import java.util.Date;
 import java.util.List;
+import java.util.Timer;
+import java.util.TimerTask;
 import java.util.regex.Pattern;
 
 import net.usikkert.kouchat.Constants;
@@ -62,6 +64,12 @@ public class CommandParser {
     private final TransferList tList;
     private final Settings settings;
     private final CoreMessages coreMessages;
+
+    /** Maximum time in milliseconds to wait for the receiver to accept a file transfer. */
+    private long fileSendWaitTimeout = Constants.FILE_TRANSFER_SEND_WAIT_TIMEOUT;
+
+    /** Timer used for the file send wait timeout watchdog. */
+    private final Timer fileSendWaitTimer = new Timer("FileSendWaitTimer", true);
 
     /**
      * Constructor.
@@ -762,6 +770,10 @@ public class CommandParser {
     /**
      * Sends a file to a user.
      *
+     * <p>A watchdog automatically cancels the transfer if the receiver
+     * has not accepted it within the send wait timeout, so that an
+     * unanswered request does not stay pending forever.</p>
+     *
      * @param user The user to send to.
      * @param file The file to send to the user.
      * @throws CommandException If there was a problem sending the file.
@@ -771,10 +783,50 @@ public class CommandParser {
         final FileSender fileSend = tList.addFileSender(user, file);
         ui.showTransfer(fileSend);
 
+        scheduleFileSendWaitWatchdog(fileSend, user, file);
+
         final String size = Tools.byteToString(file.length());
         msgController.showSystemMessage(coreMessages.getMessage(
                 "core.command.send.systemMessage.sendingFile",
                 file.getName(), fileSend.getId(), size, user.getNick()));
+    }
+
+    /**
+     * Schedules a watchdog that cancels a file send if the receiver has not
+     * accepted the transfer within the send wait timeout.
+     *
+     * @param fileSend The file sender to watch.
+     * @param user The user the file is sent to.
+     * @param file The file being sent.
+     */
+    private void scheduleFileSendWaitWatchdog(final FileSender fileSend, final User user, final FileToSend file) {
+        final TimerTask waitWatchdog = new TimerTask() {
+            @Override
+            public void run() {
+                // The transfer has already started or been cancelled - nothing to do.
+                if (!fileSend.isWaiting() || fileSend.isCanceled()) {
+                    return;
+                }
+
+                fileSend.cancel();
+                msgController.showSystemMessage(coreMessages.getMessage(
+                        "core.sendFile.systemMessage.waitTimeout", user.getNick(), file.getName()));
+                tList.removeFileSender(fileSend);
+                controller.sendFileAbort(user, file.hashCode(), file.getName());
+            }
+        };
+
+        fileSendWaitTimer.schedule(waitWatchdog, fileSendWaitTimeout);
+    }
+
+    /**
+     * Sets the timeout used when waiting for the receiver to accept a
+     * file transfer. Meant for testing.
+     *
+     * @param fileSendWaitTimeout The timeout in milliseconds.
+     */
+    void setFileSendWaitTimeout(final long fileSendWaitTimeout) {
+        this.fileSendWaitTimeout = fileSendWaitTimeout;
     }
 
     /**

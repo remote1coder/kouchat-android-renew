@@ -43,12 +43,23 @@ public interface UserInterface {
      * Will ask the user to accept or reject a file transfer from
      * another user.
      *
-     * @param user The user that's sending the file.
-     * @param fileName The name of the file to save.
-     * @param size The size of the file, in readable format.
+     * <p>Implementations should register the prompt they show, so that
+     * {@link #cancelFileSavePrompt(FileReceiver)} can dismiss it later.</p>
+     *
+     * @param fileReceiver The file transfer that the user is asked about.
      * @return True if the user wants to receive the file, or false if not.
      */
-    boolean askFileSave(String user, String fileName, String size);
+    boolean askFileSave(FileReceiver fileReceiver);
+
+    /**
+     * Dismisses any prompt, dialog or notification that is asking the user
+     * about receiving this file transfer. Called when the file transfer
+     * request times out, or the sender aborts it, and no answer is needed
+     * anymore. Implementations without a dismissible prompt do nothing.
+     *
+     * @param fileReceiver The file transfer to dismiss the prompt for.
+     */
+    void cancelFileSavePrompt(FileReceiver fileReceiver);
 
     /**
      * Asks the user where to save the file. The file receiver must

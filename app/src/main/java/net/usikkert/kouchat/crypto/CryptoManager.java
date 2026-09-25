@@ -63,6 +63,9 @@ public class CryptoManager {
     /** Milliseconds to wait for a peer's key exchange response before falling back. */
     static final long HANDSHAKE_TIMEOUT_MS = 10_000;
 
+    /** Number of handshake retransmissions before giving up and staying in the pending state. */
+    static final int MAX_HANDSHAKE_RETRIES = 12;
+
     private final Identity identity;
     private final TrustedKeys trustedKeys;
     private final CryptoMessageSink sink;
@@ -133,12 +136,99 @@ public class CryptoManager {
         sink.sendKeyReq(peer);
         sink.sendPubKey(peer, identity.getPublicKeyBase64());
 
+        if (!state.retryScheduled) {
+            state.retryScheduled = true;
+            state.retryCount = 0;
+            scheduleHandshakeRetry(peer);
+        }
+    }
+
+    /**
+     * Schedules the check that runs when the handshake with a peer has not
+     * completed within the timeout.
+     *
+     * @param peer The peer to check on.
+     */
+    private void scheduleHandshakeRetry(final User peer) {
         timeoutTimer.schedule(new TimerTask() {
             @Override
             public void run() {
-                markUnsupportedIfStuck(peer.getCode());
+                retryOrMarkUnsupported(peer.getCode());
             }
         }, HANDSHAKE_TIMEOUT_MS);
+    }
+
+    /**
+     * Called when the handshake with a peer has not completed within the timeout.
+     *
+     * <p>If the peer never sent its public key, it is marked unsupported and the
+     * chat falls back to plaintext. If the peer speaks crypto but the handshake
+     * is stuck (a handshake message was lost on the way), our part of the
+     * handshake is retransmitted periodically, so the peer can complete it.</p>
+     *
+     * @param code The user code of the peer.
+     */
+    private synchronized void retryOrMarkUnsupported(final int code) {
+        final PeerCryptoState state = states.get(code);
+
+        if (state == null) {
+            return;
+        }
+
+        // Done, given up or never started - stop the retry chain
+        if (state.channel != null || state.unsupported || state.rejected || !state.handshakeInitiated
+                || state.peer == null) {
+            state.retryScheduled = false;
+            return;
+        }
+
+        if (state.peerPublicKey == null) {
+            // The peer never answered the key exchange: no crypto support.
+            state.unsupported = true;
+            state.retryScheduled = false;
+            LOG.log(Level.FINE, "Peer " + code + " did not respond to key exchange; falling back to plaintext.");
+
+            final CryptoStatusListener listener = statusListener;
+            if (listener != null) {
+                listener.peerUnsupported(state.peer);
+            }
+
+            return;
+        }
+
+        if (state.retryCount >= MAX_HANDSHAKE_RETRIES) {
+            // Give up retransmitting; the handshake stays pending, and the user
+            // can re-open the private chat to try again.
+            state.retryScheduled = false;
+            LOG.log(Level.FINE, "Giving up retransmitting the handshake with peer " + code + ".");
+            return;
+        }
+
+        state.retryCount++;
+
+        // The peer speaks crypto, but the handshake did not complete - most likely
+        // a lost handshake message. Re-send our part so the peer can complete it.
+        try {
+            sink.sendPubKey(state.peer, identity.getPublicKeyBase64());
+
+            if (state.iTrusted) {
+                if (isInitiator(state.peer) && state.sessionKey != null) {
+                    final String wrapped = CryptoUtils.wrapSessionKey(state.peerPublicKey, state.sessionKey);
+                    final String sig = CryptoUtils.sign(identity.getPrivateKey(), signedPayload(state.peer, wrapped));
+                    sink.sendKeyTrust(state.peer, wrapped, sig);
+                }
+
+                else if (!isInitiator(state.peer)) {
+                    sink.sendKeyTrustAck(state.peer);
+                }
+            }
+        }
+
+        catch (final RuntimeException e) {
+            LOG.log(Level.WARNING, "Failed to retransmit the handshake with " + state.peer.getNick() + ": " + e, e);
+        }
+
+        scheduleHandshakeRetry(state.peer);
     }
 
     /**
@@ -213,7 +303,7 @@ public class CryptoManager {
             return;
         }
 
-        trustedKeys.trust(peer.getCode(), state.fingerprint);
+        trustedKeys.trust(peer.getCode(), state.fingerprint, peer.getNick());
         state.iTrusted = true;
 
         try {
@@ -324,23 +414,6 @@ public class CryptoManager {
             state.iTrusted = false;
             state.rejected = true;
             sink.sendKeyReject(peer);
-        }
-    }
-
-    private synchronized void markUnsupportedIfStuck(final int code) {
-        final PeerCryptoState state = states.get(code);
-        if (state == null) {
-            return;
-        }
-
-        if (state.peerPublicKey == null && state.channel == null) {
-            state.unsupported = true;
-            LOG.log(Level.FINE, "Peer " + code + " did not respond to key exchange; falling back to plaintext.");
-
-            final CryptoStatusListener listener = statusListener;
-            if (listener != null && state.peer != null) {
-                listener.peerUnsupported(state.peer);
-            }
         }
     }
 
@@ -527,6 +600,13 @@ public class CryptoManager {
         boolean rejected;
         boolean promptShown;
         boolean handshakeInitiated;
+
+        /** If a handshake timeout/retry task is scheduled for this peer. */
+        boolean retryScheduled;
+
+        /** Number of handshake retransmissions so far. */
+        int retryCount;
+
         @org.jetbrains.annotations.Nullable
         String pendingWrappedKey;
         @org.jetbrains.annotations.Nullable

@@ -24,7 +24,10 @@ package net.usikkert.kouchat.net;
 
 import java.io.File;
 import java.util.Date;
+import java.util.Timer;
+import java.util.TimerTask;
 
+import net.usikkert.kouchat.Constants;
 import net.usikkert.kouchat.message.CoreMessages;
 import net.usikkert.kouchat.misc.ChatState;
 import net.usikkert.kouchat.misc.CommandException;
@@ -33,9 +36,11 @@ import net.usikkert.kouchat.misc.MessageController;
 import net.usikkert.kouchat.misc.Topic;
 import net.usikkert.kouchat.misc.User;
 import net.usikkert.kouchat.misc.WaitingList;
+import net.usikkert.kouchat.settings.AutoAcceptFiles;
 import net.usikkert.kouchat.settings.Settings;
 import net.usikkert.kouchat.ui.UserInterface;
 import net.usikkert.kouchat.util.DateTools;
+import net.usikkert.kouchat.util.ImageFileUtils;
 import net.usikkert.kouchat.util.Logger;
 import net.usikkert.kouchat.util.Sleeper;
 import net.usikkert.kouchat.util.Tools;
@@ -62,6 +67,13 @@ public class DefaultMessageResponder implements MessageResponder {
     private final MessageController msgController;
     private final ChatState chatState;
     private final CoreMessages coreMessages;
+    private final Settings settings;
+
+    /** Maximum time in milliseconds to wait for the user to answer a file transfer request. */
+    private long fileAnswerTimeout = Constants.FILE_TRANSFER_ANSWER_TIMEOUT;
+
+    /** Timer used for the file transfer answer timeout watchdog. */
+    private final Timer fileAnswerTimeoutTimer = new Timer("FileAnswerTimeoutTimer", true);
 
     /**
      * Constructor.
@@ -81,12 +93,23 @@ public class DefaultMessageResponder implements MessageResponder {
         this.controller = controller;
         this.ui = ui;
         this.coreMessages = coreMessages;
+        this.settings = settings;
 
         msgController = ui.getMessageController();
         me = settings.getMe();
         tList = controller.getTransferList();
         wList = controller.getWaitingList();
         chatState = controller.getChatState();
+    }
+
+    /**
+     * Sets the timeout used when waiting for the user to answer a
+     * file transfer request. Meant for testing.
+     *
+     * @param fileAnswerTimeout The timeout in milliseconds.
+     */
+    void setFileAnswerTimeout(final long fileAnswerTimeout) {
+        this.fileAnswerTimeout = fileAnswerTimeout;
     }
 
     /**
@@ -177,7 +200,11 @@ public class DefaultMessageResponder implements MessageResponder {
         controller.getUserList().add(newUser);
         msgController.showSystemMessage(newUser.getNick() + " logged on from " + newUser.getIpAddress());
 
-        if (controller.isMeshMode()) {
+        // Unicast our client info (with the ports) to the new user, so the ports
+        // are exchanged even if the multicast copy of the CLIENT message is lost.
+        controller.sendClientToIp(newUser.getIpAddress());
+
+        if (controller.shouldMeshWithNewUser(newUser)) {
             controller.attemptP2pMesh(newUser);
         }
     }
@@ -207,7 +234,11 @@ public class DefaultMessageResponder implements MessageResponder {
         controller.getUserList().add(newUser);
         msgController.showSystemMessage(newUser.getNick() + " showed up unexpectedly from " + newUser.getIpAddress());
 
-        if (controller.isMeshMode()) {
+        // Unicast our client info (with the ports) to the new user, so the ports
+        // are exchanged even if the multicast copy of the CLIENT message is lost.
+        controller.sendClientToIp(newUser.getIpAddress());
+
+        if (controller.shouldMeshWithNewUser(newUser)) {
             controller.attemptP2pMesh(newUser);
         }
     }
@@ -408,7 +439,11 @@ public class DefaultMessageResponder implements MessageResponder {
             controller.getUserList().add(user);
             controller.sendExposingToIp(ipAddress);
 
-            if (controller.isMeshMode()) {
+            // Unicast our client info (with the ports) to the new user, so the ports
+            // are exchanged even if the multicast copy of the CLIENT message is lost.
+            controller.sendClientToIp(ipAddress);
+
+            if (controller.shouldMeshWithNewUser(user)) {
                 controller.attemptP2pMesh(user);
             }
             return;
@@ -525,52 +560,17 @@ public class DefaultMessageResponder implements MessageResponder {
             msgController.showSystemMessage(
                     user + " is trying to send the file " + fileName + " (#" + fileRes.getId() + ") [" + size + "]");
 
-            if (ui.askFileSave(user, fileName, size)) {
-                ui.showFileSave(fileRes);
+            if (shouldAutoAccept(tmpUser, fileName)) {
+                msgController.showSystemMessage(
+                        coreMessages.getMessage("core.sendFile.systemMessage.autoAccepted", fileName, user));
 
-                if (fileRes.isAccepted() && !fileRes.isCanceled()) {
-                    ui.showTransfer(fileRes);
-
-                    try {
-                        final int port = fileRes.startServer();
-                        controller.sendFileAccept(tmpUser, port, fileHash, fileName);
-
-                        if (fileRes.transfer()) {
-                            msgController.showSystemMessage("Successfully received " + fileName +
-                                                                    " from " + user + ", and saved as " + fileRes.getFile().getName());
-                        }
-
-                        else {
-                            msgController.showSystemMessage("Failed to receive " + fileName + " from " + user);
-                            fileRes.cancel();
-                        }
-                    }
-
-                    // Failed to start the server
-                    catch (final ServerException e) {
-                        LOG.severe(e, "Failed to start server: %s", e.getMessage());
-                        msgController.showSystemMessage("Failed to receive " + fileName + " from " + user);
-                        controller.sendFileAbort(tmpUser, fileHash, fileName);
-                        fileRes.cancel();
-                    }
-
-                    // Failed to send the accept message
-                    catch (final CommandException e) {
-                        msgController.showSystemMessage("Failed to receive " + fileName + " from " + user);
-                        fileRes.cancel();
-                    }
-                }
-
-                else if (!fileRes.isCanceled()) {
-                    msgController.showSystemMessage("You declined to receive " + fileName + " from " + user);
-                    controller.sendFileAbort(tmpUser, fileHash, fileName);
-                }
-
+                fileRes.setFile(generateUniqueFile(fileRes.getFile()));
+                fileRes.accept();
+                receiveAcceptedFile(fileRes, tmpUser, fileName, user, fileHash);
             }
 
-            else if (!fileRes.isCanceled()) {
-                msgController.showSystemMessage("You declined to receive " + fileName + " from " + user);
-                controller.sendFileAbort(tmpUser, fileHash, fileName);
+            else {
+                askUserAndReceiveFile(fileRes, tmpUser, fileName, user, fileHash);
             }
 
             tList.removeFileReceiver(fileRes);
@@ -578,6 +578,172 @@ public class DefaultMessageResponder implements MessageResponder {
 
         else {
             LOG.severe("Could not find user: %s", user);
+        }
+    }
+
+    /**
+     * Checks if an incoming file transfer should be automatically accepted,
+     * without asking the user. This is the case when an end-to-end encrypted
+     * channel is active with the sender, and the file matches the configured
+     * auto-accept scope.
+     *
+     * @param sender The user sending the file.
+     * @param fileName The name of the file.
+     * @return True if the file should be automatically accepted.
+     */
+    private boolean shouldAutoAccept(final User sender, final String fileName) {
+        final AutoAcceptFiles scope = settings.getAutoAcceptFiles();
+
+        if (scope == AutoAcceptFiles.OFF) {
+            return false;
+        }
+
+        if (!controller.getCryptoManager().isChannelActive(sender)) {
+            return false;
+        }
+
+        if (scope == AutoAcceptFiles.ALL) {
+            return true;
+        }
+
+        return ImageFileUtils.isImageFileName(fileName);
+    }
+
+    /**
+     * Generates a file that does not already exist, based on the given file,
+     * by appending a counter to the base name. Used when a file is
+     * automatically accepted, since there is no save dialog to warn
+     * about overwriting.
+     *
+     * @param file The file to make unique.
+     * @return A file that does not exist, or the original file if no
+     *         unique name could be generated.
+     */
+    private File generateUniqueFile(final File file) {
+        if (!file.exists()) {
+            return file;
+        }
+
+        final String name = file.getName();
+        String baseName = name;
+        String extension = "";
+
+        final int dotPos = name.lastIndexOf('.');
+        if (dotPos > 0) {
+            baseName = name.substring(0, dotPos);
+            extension = name.substring(dotPos);
+        }
+
+        final File folder = file.getParentFile();
+
+        for (int i = 2; i < 1000; i++) {
+            final File candidate = new File(folder, baseName + "-" + i + extension);
+
+            if (!candidate.exists()) {
+                return candidate;
+            }
+        }
+
+        return file;
+    }
+
+    /**
+     * Asks the user to accept or reject an incoming file transfer, and
+     * receives the file if accepted. A watchdog automatically rejects the
+     * request if the user does not answer within the answer timeout, so
+     * that the sender does not have to wait forever.
+     *
+     * @param fileRes The file receiver for the transfer.
+     * @param tmpUser The user sending the file.
+     * @param fileName The name of the file.
+     * @param user The nick name of the user sending the file.
+     * @param fileHash The hash code of the file.
+     */
+    private void askUserAndReceiveFile(final FileReceiver fileRes, final User tmpUser, final String fileName,
+                                       final String user, final int fileHash) {
+        final TimerTask answerWatchdog = new TimerTask() {
+            @Override
+            public void run() {
+                // Lost the race against the user answering - nothing to do.
+                if (!fileRes.markTimedOut()) {
+                    return;
+                }
+
+                ui.cancelFileSavePrompt(fileRes);
+                msgController.showSystemMessage(
+                        coreMessages.getMessage("core.sendFile.systemMessage.answerTimeout", fileName, user));
+                controller.sendFileAbort(tmpUser, fileHash, fileName);
+            }
+        };
+
+        fileAnswerTimeoutTimer.schedule(answerWatchdog, fileAnswerTimeout);
+
+        try {
+            if (ui.askFileSave(fileRes)) {
+                ui.showFileSave(fileRes);
+
+                if (fileRes.isAccepted() && !fileRes.isCanceled()) {
+                    receiveAcceptedFile(fileRes, tmpUser, fileName, user, fileHash);
+                }
+
+                else if (!fileRes.isCanceled()) {
+                    msgController.showSystemMessage("You declined to receive " + fileName + " from " + user);
+                    controller.sendFileAbort(tmpUser, fileHash, fileName);
+                }
+            }
+
+            else if (!fileRes.isCanceled()) {
+                msgController.showSystemMessage("You declined to receive " + fileName + " from " + user);
+                controller.sendFileAbort(tmpUser, fileHash, fileName);
+            }
+        }
+
+        finally {
+            answerWatchdog.cancel();
+        }
+    }
+
+    /**
+     * Receives a file that has been accepted, by starting the file transfer
+     * server, notifying the sender and transferring the file.
+     *
+     * @param fileRes The file receiver for the transfer, already accepted.
+     * @param tmpUser The user sending the file.
+     * @param fileName The name of the file.
+     * @param user The nick name of the user sending the file.
+     * @param fileHash The hash code of the file.
+     */
+    private void receiveAcceptedFile(final FileReceiver fileRes, final User tmpUser, final String fileName,
+                                     final String user, final int fileHash) {
+        ui.showTransfer(fileRes);
+
+        try {
+            final int port = fileRes.startServer();
+            controller.sendFileAccept(tmpUser, port, fileHash, fileName);
+
+            if (fileRes.transfer()) {
+                msgController.showSystemMessage("Successfully received " + fileName +
+                                                        " from " + user + ", and saved as " + fileRes.getFile().getName());
+            }
+
+            else {
+                msgController.showSystemMessage("Failed to receive " + fileName + " from " + user);
+                fileRes.cancel();
+            }
+        }
+
+        // Failed to start the server
+        catch (final ServerException e) {
+            LOG.severe(e, "Failed to start server: %s", e.getMessage());
+            msgController.showSystemMessage("Failed to receive " + fileName + " from " + user);
+            controller.sendFileAbort(tmpUser, fileHash, fileName);
+            fileRes.cancel();
+        }
+
+        // Failed to send the accept message
+        catch (final CommandException e) {
+            msgController.showSystemMessage("Failed to receive " + fileName + " from " + user);
+            fileRes.cancel();
         }
     }
 
@@ -605,6 +771,7 @@ public class DefaultMessageResponder implements MessageResponder {
 
         if (fileReceiver != null) {
             fileReceiver.cancel();
+            ui.cancelFileSavePrompt(fileReceiver);
             msgController.showSystemMessage(user.getNick() + " aborted sending of " + fileName);
         }
     }

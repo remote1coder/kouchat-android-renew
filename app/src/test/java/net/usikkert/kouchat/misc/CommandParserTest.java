@@ -1001,6 +1001,52 @@ public class CommandParserTest {
                 "Could not send image screenshot.png to Alice: You can not send a file to a user that is away");
     }
 
+    @Test
+    public void sendFileShouldCancelTransferWhenReceiverDoesNotAcceptInTime() throws Exception {
+        final User user = new User("Slowpoke", 123456);
+        final FileToSend file = FileToSend.fromBytes(new byte[] { 1, 2, 3 }, "screenshot.png");
+        final FileSender fileSender = mock(FileSender.class);
+
+        when(fileSender.getId()).thenReturn(3);
+        when(fileSender.isWaiting()).thenReturn(true);
+        when(fileSender.isCanceled()).thenReturn(false);
+        when(transferList.addFileSender(any(User.class), any(FileToSend.class))).thenReturn(fileSender);
+
+        parser.setFileSendWaitTimeout(100);
+        parser.sendFile(user, file);
+
+        // Give the watchdog time to fire
+        Thread.sleep(400);
+
+        verify(fileSender).cancel();
+        verify(transferList).removeFileSender(fileSender);
+        verify(controller).sendFileAbort(user, file.hashCode(), "screenshot.png");
+        verify(messageController).showSystemMessage(
+                "Timed out waiting for Slowpoke to accept screenshot.png - transfer cancelled");
+    }
+
+    @Test
+    public void sendFileWaitWatchdogShouldNotCancelTransferThatHasAlreadyStarted() throws Exception {
+        final User user = new User("Fastpoke", 123456);
+        final FileToSend file = FileToSend.fromBytes(new byte[] { 4, 5, 6 }, "screenshot.png");
+        final FileSender fileSender = mock(FileSender.class);
+
+        when(fileSender.getId()).thenReturn(4);
+        // The receiver accepted, so the transfer is no longer waiting
+        when(fileSender.isWaiting()).thenReturn(false);
+        when(transferList.addFileSender(any(User.class), any(FileToSend.class))).thenReturn(fileSender);
+
+        parser.setFileSendWaitTimeout(100);
+        parser.sendFile(user, file);
+
+        // Give the watchdog time to fire
+        Thread.sleep(400);
+
+        verify(fileSender, never()).cancel();
+        verify(transferList, never()).removeFileSender(fileSender);
+        verify(controller, never()).sendFileAbort(any(User.class), anyInt(), anyString());
+    }
+
     /*
      * /msg
      */

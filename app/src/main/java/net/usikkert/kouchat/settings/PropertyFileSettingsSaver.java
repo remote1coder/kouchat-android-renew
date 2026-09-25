@@ -85,6 +85,12 @@ public class PropertyFileSettingsSaver implements SettingsSaver {
         properties.put(SYSTEM_TRAY.getKey(), String.valueOf(settings.isSystemTray()));
         properties.put(NETWORK_INTERFACE.getKey(), Tools.emptyIfNull(settings.getNetworkInterface()));
         properties.put(NETWORK_MODE.getKey(), settings.getNetworkMode().getKey());
+        properties.put(THEME_MODE.getKey(), settings.getThemeMode().getKey());
+        properties.put(THEME_DARK_START_HOUR.getKey(), String.valueOf(settings.getThemeDarkStartHour()));
+        properties.put(THEME_DARK_END_HOUR.getKey(), String.valueOf(settings.getThemeDarkEndHour()));
+        properties.put(AUTO_ACCEPT_FILES.getKey(), settings.getAutoAcceptFiles().getKey());
+        properties.put(MULTICAST_UNICAST_MODE.getKey(), settings.getMulticastUnicastMode().getKey());
+        properties.put(AUTO_ENCRYPT_UNICAST.getKey(), String.valueOf(settings.isAutoEncryptUnicast()));
 
         try {
             ioTools.createFolder(Constants.APP_FOLDER);

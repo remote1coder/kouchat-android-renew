@@ -73,7 +73,36 @@ public class TrustedKeysTest {
     public void wrongFingerprintShouldNotBeTrusted() {
         trustedKeys.trust(100, "AB:CD:EF");
         assertFalse(trustedKeys.isTrusted(100, "AB:CD:99"));
-        assertFalse(trustedKeys.isTrusted(101, "AB:CD:EF"));
+    }
+
+    @Test
+    public void knownKeyShouldBeTrustedUnderANewUserCode() {
+        // The user code is random per session, so a returning peer has a new
+        // code but the same key. The key fingerprint is the stable identity.
+        trustedKeys.trust(100, "AB:CD:EF");
+
+        assertTrue(trustedKeys.isTrusted(101, "AB:CD:EF"));
+    }
+
+    @Test
+    public void nickShouldBeRememberedAndRecognizedCaseInsensitively() {
+        trustedKeys.trust(100, "AB:CD:EF", "Alice");
+
+        assertTrue(trustedKeys.isNickTrusted("Alice"));
+        assertTrue(trustedKeys.isNickTrusted("alice"));
+        assertFalse(trustedKeys.isNickTrusted("Bob"));
+
+        // New instance loading the same file should see the nick
+        final TrustedKeys reloaded = new TrustedKeys(tempFile.toString());
+        reloaded.load();
+        assertTrue(reloaded.isNickTrusted("ALICE"));
+    }
+
+    @Test
+    public void trustWithoutNickShouldNotRecordNick() {
+        trustedKeys.trust(100, "AB:CD:EF");
+
+        assertFalse(trustedKeys.isNickTrusted("Alice"));
     }
 
     @Test

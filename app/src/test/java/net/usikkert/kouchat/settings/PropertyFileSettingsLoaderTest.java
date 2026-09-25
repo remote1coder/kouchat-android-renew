@@ -101,8 +101,14 @@ public class PropertyFileSettingsLoaderTest {
         properties.setProperty(BROWSER.getKey(), "opera");
         properties.setProperty(LOOK_AND_FEEL.getKey(), "sega");
         properties.setProperty(NETWORK_INTERFACE.getKey(), "eth5");
+        properties.setProperty(THEME_MODE.getKey(), "dark");
+        properties.setProperty(THEME_DARK_START_HOUR.getKey(), "20");
+        properties.setProperty(THEME_DARK_END_HOUR.getKey(), "8");
+        properties.setProperty(AUTO_ACCEPT_FILES.getKey(), "all");
+        properties.setProperty(MULTICAST_UNICAST_MODE.getKey(), "trusted");
+        properties.setProperty(AUTO_ENCRYPT_UNICAST.getKey(), "false");
 
-        assertEquals(11, properties.size());
+        assertEquals(17, properties.size());
 
         when(propertyTools.loadProperties(anyString())).thenReturn(properties);
 
@@ -122,6 +128,34 @@ public class PropertyFileSettingsLoaderTest {
         assertEquals("opera", settings.getBrowser());
         assertEquals("sega", settings.getLookAndFeel());
         assertEquals("eth5", settings.getNetworkInterface());
+
+        assertEquals(ThemeMode.DARK, settings.getThemeMode());
+        assertEquals(20, settings.getThemeDarkStartHour());
+        assertEquals(8, settings.getThemeDarkEndHour());
+        assertEquals(AutoAcceptFiles.ALL, settings.getAutoAcceptFiles());
+        assertEquals(MulticastUnicastMode.TRUSTED, settings.getMulticastUnicastMode());
+        assertFalse(settings.isAutoEncryptUnicast());
+    }
+
+    @Test
+    public void loadSettingsShouldUseDefaultsForUnknownThemeValues() throws IOException {
+        final Properties properties = new Properties();
+
+        properties.setProperty(THEME_MODE.getKey(), "unknown");
+        properties.setProperty(THEME_DARK_START_HOUR.getKey(), "not a number");
+        properties.setProperty(THEME_DARK_END_HOUR.getKey(), "25");
+        properties.setProperty(AUTO_ACCEPT_FILES.getKey(), "unknown");
+        properties.setProperty(MULTICAST_UNICAST_MODE.getKey(), "unknown");
+
+        when(propertyTools.loadProperties(anyString())).thenReturn(properties);
+
+        loader.loadSettings(settings);
+
+        assertEquals(ThemeMode.LIGHT, settings.getThemeMode());
+        assertEquals(18, settings.getThemeDarkStartHour());
+        assertEquals(9, settings.getThemeDarkEndHour());
+        assertEquals(AutoAcceptFiles.IMAGES, settings.getAutoAcceptFiles());
+        assertEquals(MulticastUnicastMode.ALL, settings.getMulticastUnicastMode());
     }
 
     @Test

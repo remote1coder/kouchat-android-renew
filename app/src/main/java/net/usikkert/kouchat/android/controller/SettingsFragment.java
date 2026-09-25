@@ -29,9 +29,13 @@ import net.usikkert.kouchat.android.component.HoloColorPickerPreferenceDialog;
 import net.usikkert.kouchat.android.service.ChatService;
 import net.usikkert.kouchat.android.service.ChatServiceBinder;
 import net.usikkert.kouchat.android.settings.AndroidSettings;
+import net.usikkert.kouchat.android.theme.AndroidThemeHelper;
 import net.usikkert.kouchat.net.NetworkInterfaceInfo;
 import net.usikkert.kouchat.net.NetworkUtils;
+import net.usikkert.kouchat.settings.AutoAcceptFiles;
+import net.usikkert.kouchat.settings.MulticastUnicastMode;
 import net.usikkert.kouchat.settings.NetworkMode;
+import net.usikkert.kouchat.settings.ThemeMode;
 
 import android.content.ComponentName;
 import android.content.Context;
@@ -72,6 +76,12 @@ public class SettingsFragment extends PreferenceFragmentCompat
     private String systemColorKey;
     private String networkInterfaceKey;
     private String networkModeKey;
+    private String themeModeKey;
+    private String darkStartHourKey;
+    private String darkEndHourKey;
+    private String autoAcceptFilesKey;
+    private String multicastUnicastKey;
+    private String autoEncryptUnicastKey;
 
     private String notificationLightKey;
     private String notificationSoundKey;
@@ -96,6 +106,12 @@ public class SettingsFragment extends PreferenceFragmentCompat
         systemColorKey = getString(R.string.settings_sys_color_key);
         networkInterfaceKey = getString(R.string.settings_network_interface_key);
         networkModeKey = getString(R.string.settings_network_mode_key);
+        themeModeKey = getString(R.string.settings_theme_mode_key);
+        darkStartHourKey = getString(R.string.settings_dark_start_hour_key);
+        darkEndHourKey = getString(R.string.settings_dark_end_hour_key);
+        autoAcceptFilesKey = getString(R.string.settings_auto_accept_files_key);
+        multicastUnicastKey = getString(R.string.settings_multicast_unicast_key);
+        autoEncryptUnicastKey = getString(R.string.settings_auto_encrypt_unicast_key);
 
         notificationLightKey = getString(R.string.settings_notification_light_key);
         notificationSoundKey = getString(R.string.settings_notification_sound_key);
@@ -116,6 +132,36 @@ public class SettingsFragment extends PreferenceFragmentCompat
 
         if (networkModePreference != null) {
             updateNetworkModeSummary(networkModePreference);
+        }
+
+        final ListPreference themeModePreference = findPreference(themeModeKey);
+
+        if (themeModePreference != null) {
+            updateThemeModeSummary(themeModePreference);
+        }
+
+        final ListPreference darkStartHourPreference = findPreference(darkStartHourKey);
+
+        if (darkStartHourPreference != null) {
+            updateHourSummary(darkStartHourPreference);
+        }
+
+        final ListPreference darkEndHourPreference = findPreference(darkEndHourKey);
+
+        if (darkEndHourPreference != null) {
+            updateHourSummary(darkEndHourPreference);
+        }
+
+        final ListPreference autoAcceptFilesPreference = findPreference(autoAcceptFilesKey);
+
+        if (autoAcceptFilesPreference != null) {
+            updateAutoAcceptFilesSummary(autoAcceptFilesPreference);
+        }
+
+        final ListPreference multicastUnicastPreference = findPreference(multicastUnicastKey);
+
+        if (multicastUnicastPreference != null) {
+            updateMulticastUnicastSummary(multicastUnicastPreference);
         }
     }
 
@@ -188,6 +234,65 @@ public class SettingsFragment extends PreferenceFragmentCompat
                 final NetworkMode mode = NetworkMode.fromKey(preference.getValue());
                 settings.setNetworkMode(mode);
                 androidUserInterface.setNetworkMode(mode);
+            }
+        }
+
+        else if (key.equals(themeModeKey)) {
+            final ListPreference preference = (ListPreference) findPreference(key);
+            updateThemeModeSummary(preference);
+
+            if (settings != null) {
+                settings.setThemeMode(ThemeMode.fromKey(preference.getValue()));
+            }
+
+            if (getActivity() != null) {
+                AndroidThemeHelper.applyTheme(getActivity());
+            }
+        }
+
+        else if (key.equals(darkStartHourKey)) {
+            final ListPreference preference = (ListPreference) findPreference(key);
+            updateHourSummary(preference);
+
+            if (settings != null) {
+                settings.setThemeDarkStartHour(Integer.parseInt(preference.getValue()));
+            }
+        }
+
+        else if (key.equals(darkEndHourKey)) {
+            final ListPreference preference = (ListPreference) findPreference(key);
+            updateHourSummary(preference);
+
+            if (settings != null) {
+                settings.setThemeDarkEndHour(Integer.parseInt(preference.getValue()));
+            }
+        }
+
+        else if (key.equals(autoAcceptFilesKey)) {
+            final ListPreference preference = (ListPreference) findPreference(key);
+            updateAutoAcceptFilesSummary(preference);
+
+            if (settings != null) {
+                settings.setAutoAcceptFiles(AutoAcceptFiles.fromKey(preference.getValue()));
+            }
+        }
+
+        else if (key.equals(multicastUnicastKey)) {
+            final ListPreference preference = (ListPreference) findPreference(key);
+            updateMulticastUnicastSummary(preference);
+
+            if (settings != null && androidUserInterface != null) {
+                settings.setMulticastUnicastMode(MulticastUnicastMode.fromKey(preference.getValue()));
+                androidUserInterface.applyMulticastUnicastSettings();
+            }
+        }
+
+        else if (key.equals(autoEncryptUnicastKey)) {
+            final TwoStatePreference preference = (TwoStatePreference) findPreference(key);
+
+            if (settings != null && androidUserInterface != null) {
+                settings.setAutoEncryptUnicast(preference.isChecked());
+                androidUserInterface.applyMulticastUnicastSettings();
             }
         }
 
@@ -363,6 +468,124 @@ public class SettingsFragment extends PreferenceFragmentCompat
 
             default:
                 return getString(R.string.settings_network_mode_multicast);
+        }
+    }
+
+    /**
+     * Updates the summary of the theme mode preference to show the current selection.
+     *
+     * @param preference The theme mode preference.
+     */
+    private void updateThemeModeSummary(final ListPreference preference) {
+        CharSequence entry = preference.getEntry();
+
+        if (entry == null) {
+            entry = getThemeModeLabel(ThemeMode.fromKey(preference.getValue()));
+        }
+
+        preference.setSummary(entry != null ? entry : getString(R.string.settings_theme_mode_light));
+    }
+
+    /**
+     * Finds the localized label of a theme mode.
+     *
+     * @param themeMode The theme mode.
+     * @return The localized label.
+     */
+    private CharSequence getThemeModeLabel(final ThemeMode themeMode) {
+        switch (themeMode) {
+            case AUTO:
+                return getString(R.string.settings_theme_mode_auto);
+
+            case SYSTEM:
+                return getString(R.string.settings_theme_mode_system);
+
+            case DARK:
+                return getString(R.string.settings_theme_mode_dark);
+
+            default:
+                return getString(R.string.settings_theme_mode_light);
+        }
+    }
+
+    /**
+     * Updates the summary of a dark theme hour preference to show the current selection.
+     *
+     * @param preference The hour preference.
+     */
+    private void updateHourSummary(final ListPreference preference) {
+        final CharSequence entry = preference.getEntry();
+
+        if (entry != null) {
+            preference.setSummary(entry);
+        }
+    }
+
+    /**
+     * Updates the summary of the auto-accept files preference to show the current selection.
+     *
+     * @param preference The auto-accept files preference.
+     */
+    private void updateAutoAcceptFilesSummary(final ListPreference preference) {
+        CharSequence entry = preference.getEntry();
+
+        if (entry == null) {
+            entry = getAutoAcceptFilesLabel(AutoAcceptFiles.fromKey(preference.getValue()));
+        }
+
+        preference.setSummary(entry != null ? entry : getString(R.string.settings_auto_accept_images));
+    }
+
+    /**
+     * Finds the localized label of an auto-accept files scope.
+     *
+     * @param autoAcceptFiles The auto-accept files scope.
+     * @return The localized label.
+     */
+    private CharSequence getAutoAcceptFilesLabel(final AutoAcceptFiles autoAcceptFiles) {
+        switch (autoAcceptFiles) {
+            case OFF:
+                return getString(R.string.settings_auto_accept_off);
+
+            case ALL:
+                return getString(R.string.settings_auto_accept_all);
+
+            default:
+                return getString(R.string.settings_auto_accept_images);
+        }
+    }
+
+    /**
+     * Updates the summary of the multicast unicast preference to show the current selection.
+     *
+     * @param preference The multicast unicast preference.
+     */
+    private void updateMulticastUnicastSummary(final ListPreference preference) {
+        CharSequence entry = preference.getEntry();
+
+        if (entry == null) {
+            entry = getMulticastUnicastLabel(MulticastUnicastMode.fromKey(preference.getValue()));
+        }
+
+        preference.setSummary(entry != null ? entry : getString(R.string.settings_multicast_unicast_all));
+    }
+
+    /**
+     * Finds the localized label of a multicast unicast mode.
+     *
+     * @param multicastUnicastMode The multicast unicast mode.
+     * @return The localized label.
+     */
+    private CharSequence getMulticastUnicastLabel(final MulticastUnicastMode multicastUnicastMode) {
+        switch (multicastUnicastMode) {
+            case TRUSTED:
+                return getString(R.string.settings_multicast_unicast_trusted);
+
+            case OFF:
+                return getString(R.string.settings_multicast_unicast_off);
+
+            default:
+                return getString(R.string.settings_multicast_unicast_all);
         }
     }
 

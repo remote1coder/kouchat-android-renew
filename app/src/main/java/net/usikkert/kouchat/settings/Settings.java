@@ -80,6 +80,24 @@ public class Settings {
     /** The network mode: multicast (default), broadcast, unicast or p2p encrypted mesh. */
     private NetworkMode networkMode;
 
+    /** The theme mode: light (default), dark, automatic by time of day, or follow system theme. */
+    private ThemeMode themeMode;
+
+    /** The hour of the day the dark theme starts, when the theme mode is automatic. */
+    private int themeDarkStartHour;
+
+    /** The hour of the day the dark theme ends, when the theme mode is automatic. */
+    private int themeDarkEndHour;
+
+    /** The scope of files automatically accepted from users with an active encrypted channel. */
+    private AutoAcceptFiles autoAcceptFiles;
+
+    /** Which peers get an automatic redundant unicast channel in multicast/broadcast mode. */
+    private MulticastUnicastMode multicastUnicastMode;
+
+    /** If the encrypted handshake is initiated automatically for automatic unicast channels. */
+    private boolean autoEncryptUnicast;
+
     // Settings from startup arguments
 
     /** If private chat is disabled. */
@@ -111,6 +129,12 @@ public class Settings {
         systemTray = true;
         lookAndFeel = "";
         networkMode = NetworkMode.MULTICAST;
+        themeMode = ThemeMode.LIGHT;
+        themeDarkStartHour = 18;
+        themeDarkEndHour = 9;
+        autoAcceptFiles = AutoAcceptFiles.IMAGES;
+        multicastUnicastMode = MulticastUnicastMode.ALL;
+        autoEncryptUnicast = true;
     }
 
     /**
@@ -431,5 +455,139 @@ public class Settings {
      */
     public void setNetworkMode(final NetworkMode networkMode) {
         this.networkMode = networkMode;
+    }
+
+    /**
+     * Gets the theme mode (light, dark, automatic by time of day, or follow system theme).
+     *
+     * @return The theme mode.
+     */
+    public ThemeMode getThemeMode() {
+        return themeMode;
+    }
+
+    /**
+     * Sets the theme mode (light, dark, automatic by time of day, or follow system theme).
+     * Listeners are notified of the change.
+     *
+     * @param themeMode The theme mode to use.
+     */
+    public void setThemeMode(final ThemeMode themeMode) {
+        if (this.themeMode != themeMode) {
+            this.themeMode = themeMode;
+            fireSettingChanged(Setting.THEME);
+        }
+    }
+
+    /**
+     * Gets the hour of the day the dark theme starts, when the theme mode is automatic.
+     *
+     * @return The start hour, 0-23.
+     */
+    public int getThemeDarkStartHour() {
+        return themeDarkStartHour;
+    }
+
+    /**
+     * Sets the hour of the day the dark theme starts, when the theme mode is automatic.
+     * Listeners are notified of the change.
+     *
+     * @param darkStartHour The start hour, 0-23. Values outside 0-23 are ignored.
+     */
+    public void setThemeDarkStartHour(final int darkStartHour) {
+        if (darkStartHour < 0 || darkStartHour > 23) {
+            return;
+        }
+
+        if (this.themeDarkStartHour != darkStartHour) {
+            this.themeDarkStartHour = darkStartHour;
+            fireSettingChanged(Setting.THEME);
+        }
+    }
+
+    /**
+     * Gets the hour of the day the dark theme ends, when the theme mode is automatic.
+     *
+     * @return The end hour, 0-23.
+     */
+    public int getThemeDarkEndHour() {
+        return themeDarkEndHour;
+    }
+
+    /**
+     * Sets the hour of the day the dark theme ends, when the theme mode is automatic.
+     * Listeners are notified of the change.
+     *
+     * @param darkEndHour The end hour, 0-23. Values outside 0-23 are ignored.
+     */
+    public void setThemeDarkEndHour(final int darkEndHour) {
+        if (darkEndHour < 0 || darkEndHour > 23) {
+            return;
+        }
+
+        if (this.themeDarkEndHour != darkEndHour) {
+            this.themeDarkEndHour = darkEndHour;
+            fireSettingChanged(Setting.THEME);
+        }
+    }
+
+    /**
+     * Gets the scope of files automatically accepted from users
+     * with an active encrypted channel.
+     *
+     * @return The auto-accept scope.
+     */
+    public AutoAcceptFiles getAutoAcceptFiles() {
+        return autoAcceptFiles;
+    }
+
+    /**
+     * Sets the scope of files automatically accepted from users
+     * with an active encrypted channel.
+     *
+     * @param autoAcceptFiles The auto-accept scope.
+     */
+    public void setAutoAcceptFiles(final AutoAcceptFiles autoAcceptFiles) {
+        this.autoAcceptFiles = autoAcceptFiles;
+    }
+
+    /**
+     * Gets which peers get an automatic redundant unicast channel in the
+     * multicast and broadcast network modes.
+     *
+     * @return The multicast unicast mode.
+     */
+    public MulticastUnicastMode getMulticastUnicastMode() {
+        return multicastUnicastMode;
+    }
+
+    /**
+     * Sets which peers get an automatic redundant unicast channel in the
+     * multicast and broadcast network modes.
+     *
+     * @param multicastUnicastMode The multicast unicast mode.
+     */
+    public void setMulticastUnicastMode(final MulticastUnicastMode multicastUnicastMode) {
+        this.multicastUnicastMode = multicastUnicastMode;
+    }
+
+    /**
+     * Checks if the encrypted handshake should be initiated automatically
+     * for automatic unicast channels.
+     *
+     * @return If the handshake should be initiated automatically.
+     */
+    public boolean isAutoEncryptUnicast() {
+        return autoEncryptUnicast;
+    }
+
+    /**
+     * Sets if the encrypted handshake should be initiated automatically
+     * for automatic unicast channels.
+     *
+     * @param autoEncryptUnicast If the handshake should be initiated automatically.
+     */
+    public void setAutoEncryptUnicast(final boolean autoEncryptUnicast) {
+        this.autoEncryptUnicast = autoEncryptUnicast;
     }
 }

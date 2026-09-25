@@ -91,10 +91,20 @@ public class FileReceiver implements FileTransfer {
     private volatile boolean cancel;
 
     /** If the client has accepted to receive the file. */
-    private boolean accepted;
+    private volatile boolean accepted;
 
     /** If the client has rejected the file. */
-    private boolean rejected;
+    private volatile boolean rejected;
+
+    /**
+     * If the user has answered the file transfer request, or an answer
+     * is no longer meaningful (cancelled from elsewhere). Used by the
+     * answer timeout watchdog to leave transfers alone once answered.
+     */
+    private volatile boolean answered;
+
+    /** If the file transfer request was automatically rejected after a timeout. */
+    private volatile boolean timedOut;
 
     /** The file transfer listener. */
     private FileTransferListener listener;
@@ -314,7 +324,8 @@ public class FileReceiver implements FileTransfer {
      * Cancels the file transfer.
      */
     @Override
-    public void cancel() {
+    public synchronized void cancel() {
+        answered = true;
         cancel = true;
         stopReceiver();
 
@@ -463,9 +474,11 @@ public class FileReceiver implements FileTransfer {
     }
 
     /**
-     * Accept the file transfer.
+     * Accept the file transfer. This counts as an answer to the
+     * file transfer request, so the answer timeout watchdog stops.
      */
-    public void accept() {
+    public synchronized void accept() {
+        answered = true;
         accepted = true;
     }
 
@@ -479,10 +492,64 @@ public class FileReceiver implements FileTransfer {
     }
 
     /**
-     * Reject the file transfer.
+     * Reject the file transfer. This counts as an answer to the
+     * file transfer request, so the answer timeout watchdog stops.
      */
-    public void reject() {
+    public synchronized void reject() {
+        answered = true;
         rejected = true;
+    }
+
+    /**
+     * Marks the file transfer request as answered, without changing
+     * the accepted or rejected state. Used by the ui once the user has
+     * chosen to receive the file, but before the save location is chosen,
+     * so that the answer timeout watchdog does not interrupt the
+     * ongoing save dialog.
+     */
+    public synchronized void markAnswered() {
+        answered = true;
+    }
+
+    /**
+     * If the user has answered the file transfer request, or the
+     * transfer was cancelled from elsewhere.
+     *
+     * @return If the request has been answered.
+     */
+    public boolean isAnswered() {
+        return answered;
+    }
+
+    /**
+     * Marks the file transfer request as timed out and cancels it,
+     * but only if it has not already been answered. Used by the answer
+     * timeout watchdog.
+     *
+     * @return True if this call won the race and the request is now
+     *         timed out and cancelled; false if the request was already
+     *         answered, accepted, rejected or cancelled.
+     */
+    public synchronized boolean markTimedOut() {
+        if (answered || accepted || rejected || cancel) {
+            return false;
+        }
+
+        timedOut = true;
+        answered = true;
+        cancel = true;
+
+        return true;
+    }
+
+    /**
+     * If the file transfer request was automatically rejected
+     * after a timeout.
+     *
+     * @return If the request timed out.
+     */
+    public boolean isTimedOut() {
+        return timedOut;
     }
 
     /**

@@ -24,6 +24,7 @@ package net.usikkert.kouchat.crypto;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.util.Map;
 import java.util.Properties;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -96,6 +97,11 @@ public class TrustedKeys {
      * Checks if a peer's key is trusted. The fingerprint must match exactly, so a
      * changed key (e.g. from a different client) is not silently trusted.
      *
+     * <p>The user code is random per session, so a returning peer has a new code.
+     * The key fingerprint is the stable identity, and any stored fingerprint that
+     * matches makes the peer trusted. The code mapping is refreshed in memory,
+     * so later lookups by code work within the session.</p>
+     *
      * @param userCode The peer's user code.
      * @param fingerprint The peer's key fingerprint.
      * @return True if this exact key was previously trusted.
@@ -107,8 +113,39 @@ public class TrustedKeys {
             load();
         }
 
-        final String stored = trusted.getProperty(String.valueOf(userCode));
-        return fingerprint.equals(stored);
+        if (fingerprint.equals(trusted.getProperty(String.valueOf(userCode)))) {
+            return true;
+        }
+
+        for (final Map.Entry<Object, Object> entry : trusted.entrySet()) {
+            if (fingerprint.equals(entry.getValue())) {
+                // Known key under an old user code from an earlier session.
+                // Remember it under the current code for the rest of this session.
+                trusted.setProperty(String.valueOf(userCode), fingerprint);
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Checks if any key has been trusted for a peer, without knowing the
+     * fingerprint. Used to recognize peers that were trusted in an earlier
+     * session, before a new key exchange has happened. Since the user code is
+     * random per session, the peer is recognized by nick name.
+     *
+     * @param nick The peer's nick name.
+     * @return True if the peer has a trusted key on record.
+     */
+    public synchronized boolean isNickTrusted(final String nick) {
+        Validate.notNull(nick, "Nick can not be null");
+
+        if (trusted == null) {
+            load();
+        }
+
+        return trusted.getProperty("nick." + nick.toLowerCase()) != null;
     }
 
     /**
@@ -118,6 +155,19 @@ public class TrustedKeys {
      * @param fingerprint The peer's key fingerprint.
      */
     public synchronized void trust(final int userCode, final String fingerprint) {
+        trust(userCode, fingerprint, null);
+    }
+
+    /**
+     * Records trust for a peer's key and persists it, with the peer's nick name
+     * so the peer can be recognized in later sessions (the user code is random
+     * per session).
+     *
+     * @param userCode The peer's user code.
+     * @param fingerprint The peer's key fingerprint.
+     * @param nick The peer's nick name, or <code>null</code> if unknown.
+     */
+    public synchronized void trust(final int userCode, final String fingerprint, final String nick) {
         Validate.notNull(fingerprint, "Fingerprint can not be null");
 
         if (trusted == null) {
@@ -125,6 +175,11 @@ public class TrustedKeys {
         }
 
         trusted.setProperty(String.valueOf(userCode), fingerprint);
+
+        if (nick != null) {
+            trusted.setProperty("nick." + nick.toLowerCase(), fingerprint);
+        }
+
         save();
     }
 

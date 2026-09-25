@@ -22,6 +22,7 @@
 
 package net.usikkert.kouchat.net;
 
+import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.*;
 
 import net.usikkert.kouchat.misc.CommandException;
@@ -446,6 +447,25 @@ public class NetworkMessagesTest {
         messages.sendEncryptedChatMessage(user, "CIPHER");
         verify(service).sendMessageToIp(createMessage("ENCMSG") + "CIPHER", "192.168.5.155");
         verify(service).sendMessageToUserViaTcp(createMessage("ENCMSG") + "CIPHER", user);
+    }
+
+    /**
+     * Tests sendChatMessageToUser(): used in UNICAST mode, must have the same
+     * wire format as the multicast chat message, so receivers can parse it.
+     */
+    @Test
+    public void testSendChatMessageToUserShouldUseTheSameFormatAsMulticastChat() {
+        final User user = new User("Peer", 435435);
+        user.setIpAddress("192.168.5.155");
+
+        when(service.sendChatMessageToUser(anyString(), any(User.class))).thenReturn(true);
+
+        assertTrue(messages.sendChatMessageToUser("the message", user));
+
+        final String expected = createMessage("MSG") +
+                "[" + settings.getOwnColor() + "]" +
+                "the message";
+        verify(service).sendChatMessageToUser(expected, user);
     }
 
     /**

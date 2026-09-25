@@ -192,5 +192,60 @@ public class SettingsTest {
         assertFalse(settings.isNoPrivateChat());
         assertFalse(settings.isAlwaysLog());
         assertEquals(Constants.APP_LOG_FOLDER, settings.getLogLocation());
+
+        assertEquals(ThemeMode.LIGHT, settings.getThemeMode());
+        assertEquals(18, settings.getThemeDarkStartHour());
+        assertEquals(9, settings.getThemeDarkEndHour());
+        assertEquals(AutoAcceptFiles.IMAGES, settings.getAutoAcceptFiles());
+
+        assertEquals(MulticastUnicastMode.ALL, settings.getMulticastUnicastMode());
+        assertTrue(settings.isAutoEncryptUnicast());
+    }
+
+    @Test
+    public void setThemeModeShouldNotifyListenersIfSettingIsChanged() {
+        assertEquals(ThemeMode.LIGHT, settings.getThemeMode());
+
+        settings.setThemeMode(ThemeMode.DARK);
+
+        assertEquals(ThemeMode.DARK, settings.getThemeMode());
+        assertEquals(Setting.THEME, lastChangedSetting);
+    }
+
+    @Test
+    public void setThemeModeShouldNotNotifyListenersIfSettingIsUnchanged() {
+        settings.setThemeMode(ThemeMode.LIGHT);
+
+        assertEquals(ThemeMode.LIGHT, settings.getThemeMode());
+        assertNull(lastChangedSetting);
+    }
+
+    @Test
+    public void setThemeDarkHoursShouldNotifyListenersIfSettingIsChanged() {
+        settings.setThemeDarkStartHour(20);
+        settings.setThemeDarkEndHour(7);
+
+        assertEquals(20, settings.getThemeDarkStartHour());
+        assertEquals(7, settings.getThemeDarkEndHour());
+        assertEquals(Setting.THEME, lastChangedSetting);
+    }
+
+    @Test
+    public void setThemeDarkHoursShouldIgnoreValuesOutsideOfDay() {
+        settings.setThemeDarkStartHour(24);
+        settings.setThemeDarkStartHour(-1);
+        settings.setThemeDarkEndHour(24);
+        settings.setThemeDarkEndHour(-1);
+
+        assertEquals(18, settings.getThemeDarkStartHour());
+        assertEquals(9, settings.getThemeDarkEndHour());
+        assertNull(lastChangedSetting);
+    }
+
+    @Test
+    public void setAutoAcceptFilesShouldSetValue() {
+        settings.setAutoAcceptFiles(AutoAcceptFiles.ALL);
+
+        assertEquals(AutoAcceptFiles.ALL, settings.getAutoAcceptFiles());
     }
 }

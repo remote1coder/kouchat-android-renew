@@ -25,6 +25,7 @@ package net.usikkert.kouchat.android.app
 import android.app.Application
 import android.os.Build
 import net.usikkert.kouchat.android.notification.NotificationChannelSettings
+import net.usikkert.kouchat.android.theme.AndroidThemeHelper
 
 /**
  * The base application class.
@@ -35,6 +36,9 @@ class KouChatApp: Application() {
 
     override fun onCreate() {
         super.onCreate()
+
+        // Apply the theme before any activity is created, so the first frame is correct
+        AndroidThemeHelper.applyTheme(this)
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             NotificationChannelSettings(this).setupNotificationChannels()

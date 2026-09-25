@@ -143,6 +143,12 @@ public class PropertyFileSettingsSaverTest {
         settings.setBrowser("firefox");
         settings.setLookAndFeel("starwars");
         settings.setNetworkInterface("wlan2");
+        settings.setThemeMode(ThemeMode.SYSTEM);
+        settings.setThemeDarkStartHour(19);
+        settings.setThemeDarkEndHour(7);
+        settings.setAutoAcceptFiles(AutoAcceptFiles.OFF);
+        settings.setMulticastUnicastMode(MulticastUnicastMode.TRUSTED);
+        settings.setAutoEncryptUnicast(false);
 
         settingsSaver.saveSettings();
 
@@ -152,7 +158,7 @@ public class PropertyFileSettingsSaverTest {
 
         final Properties properties = propertiesCaptor.getValue();
 
-        assertEquals(12, properties.size());
+        assertEquals(18, properties.size());
 
         assertEquals("Linda", properties.get(NICK_NAME.getKey()));
         assertEquals("100", properties.get(OWN_COLOR.getKey()));
@@ -166,6 +172,12 @@ public class PropertyFileSettingsSaverTest {
         assertEquals("starwars", properties.get(LOOK_AND_FEEL.getKey()));
         assertEquals("wlan2", properties.get(NETWORK_INTERFACE.getKey()));
         assertEquals("multicast", properties.get(NETWORK_MODE.getKey()));
+        assertEquals("system", properties.get(THEME_MODE.getKey()));
+        assertEquals("19", properties.get(THEME_DARK_START_HOUR.getKey()));
+        assertEquals("7", properties.get(THEME_DARK_END_HOUR.getKey()));
+        assertEquals("off", properties.get(AUTO_ACCEPT_FILES.getKey()));
+        assertEquals("trusted", properties.get(MULTICAST_UNICAST_MODE.getKey()));
+        assertEquals("false", properties.get(AUTO_ENCRYPT_UNICAST.getKey()));
     }
 
     @Test
@@ -183,7 +195,7 @@ public class PropertyFileSettingsSaverTest {
 
         final Properties properties = propertiesCaptor.getValue();
 
-        assertEquals(12, properties.size());
+        assertEquals(18, properties.size());
 
         assertEquals("", properties.get(NICK_NAME.getKey()));
         assertEquals("", properties.get(BROWSER.getKey()));

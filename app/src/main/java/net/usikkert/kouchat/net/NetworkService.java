@@ -311,6 +311,36 @@ public class NetworkService implements NetworkConnectionListener {
     }
 
     /**
+     * Sends a group chat message to a single user, unicast on the main chat port.
+     *
+     * <p>Used in UNICAST network mode, where group chat is sent point-to-point
+     * instead of multicast. Messages that fit in a udp packet are sent over udp
+     * unicast (which needs no port information) and over tcp; longer messages
+     * are sent over tcp only.</p>
+     *
+     * @param message The message to send.
+     * @param user The user to send the message to.
+     * @return If the message was sent or not.
+     */
+    public boolean sendChatMessageToUser(final String message, final User user) {
+        if (isUdpSize(message)) {
+            // Best effort over tcp as well; the udp unicast copy is the reliable
+            // one, since it needs no port information about the peer.
+            tcpNetworkService.sendMessageToUser(message, user);
+
+            return messageSender.send(message, user.getIpAddress());
+        }
+
+        else {
+            // Long message: too big for a udp datagram, so tcp only. Delivery can not
+            // be confirmed, so the message counts as sent when the network is up.
+            tcpNetworkService.sendMessageToUser(message, user);
+
+            return isNetworkUp();
+        }
+    }
+
+    /**
      * Registers a peer for direct point-to-point (unicast) communication.
      *
      * <p>Once at least one peer is registered, {@link #sendMessageToAllUsers(String)}

@@ -28,6 +28,7 @@ import net.usikkert.kouchat.android.component.DefaultLineHeightSpan;
 import net.usikkert.kouchat.android.smiley.Smiley;
 import net.usikkert.kouchat.android.smiley.SmileyLocator;
 import net.usikkert.kouchat.android.smiley.SmileyMap;
+import net.usikkert.kouchat.android.theme.ChatColors;
 import net.usikkert.kouchat.util.Validate;
 
 import android.content.Context;
@@ -123,7 +124,7 @@ public class MessageStylerWithHistory {
         final int labelEnd = builder.length();
 
         if (labelEnd > labelStart) {
-            builder.setSpan(new ForegroundColorSpan(color), labelStart, labelEnd, 0);
+            builder.setSpan(new ForegroundColorSpan(ChatColors.adjustForNight(appContext, color)), labelStart, labelEnd, 0);
         }
 
         final int imageStart = builder.length();
@@ -172,7 +173,7 @@ public class MessageStylerWithHistory {
     }
 
     private void addColor(final String message, final int color, final SpannableStringBuilder messageBuilder) {
-        messageBuilder.setSpan(new ForegroundColorSpan(color), 0, message.length(), 0);
+        messageBuilder.setSpan(new ForegroundColorSpan(ChatColors.adjustForNight(appContext, color)), 0, message.length(), 0);
     }
 
     private void addLinks(final SpannableStringBuilder messageBuilder) {

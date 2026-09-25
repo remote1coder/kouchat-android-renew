@@ -42,7 +42,13 @@ public enum PropertyFileSettings {
     NETWORK_INTERFACE("networkInterface"),
     NETWORK_MODE("networkMode"),
     SOUND("sound"),
-    SMILEYS("smileys");
+    SMILEYS("smileys"),
+    THEME_MODE("themeMode"),
+    THEME_DARK_START_HOUR("themeDarkStartHour"),
+    THEME_DARK_END_HOUR("themeDarkEndHour"),
+    AUTO_ACCEPT_FILES("autoAcceptFiles"),
+    MULTICAST_UNICAST_MODE("multicastUnicastMode"),
+    AUTO_ENCRYPT_UNICAST("autoEncryptUnicast");
 
     private final String key;
 

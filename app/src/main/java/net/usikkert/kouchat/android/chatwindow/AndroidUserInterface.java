@@ -133,8 +133,25 @@ public class AndroidUserInterface implements UserInterface, ChatWindow, TrustPro
      * {@link #showFileSave(FileReceiver)} will be called afterwards.
      */
     @Override
-    public boolean askFileSave(final String user, final String fileName, final String size) {
+    public boolean askFileSave(final FileReceiver fileReceiver) {
         return true;
+    }
+
+    /**
+     * Dismisses the notification and dialog asking the user to accept or reject
+     * this file transfer. Called when the request times out or the sender aborts it.
+     *
+     * @param fileReceiver The file transfer to dismiss the prompt for.
+     */
+    @Override
+    public void cancelFileSavePrompt(final FileReceiver fileReceiver) {
+        notificationService.cancelFileTransferNotification(fileReceiver);
+
+        // Close the accept/reject dialog activity, if it is open
+        final Intent intent = new Intent("net.usikkert.kouchat.android.CANCEL_FILE_TRANSFER");
+        intent.putExtra("userCode", fileReceiver.getUser().getCode());
+        intent.putExtra("fileTransferId", fileReceiver.getId());
+        context.sendBroadcast(intent);
     }
 
     /**
@@ -240,6 +257,23 @@ public class AndroidUserInterface implements UserInterface, ChatWindow, TrustPro
                 showTopic();
             }
         }, "SetNetworkMode").start();
+    }
+
+    /**
+     * Applies the multicast unicast settings to all online users, establishing a
+     * unicast channel with each user that qualifies. Called after the settings
+     * have changed.
+     *
+     * <p>Dispatched to a background thread: it can trigger handshakes (TCP writes)
+     * which must not run on Android's main thread.</p>
+     */
+    public void applyMulticastUnicastSettings() {
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                controller.applyMulticastUnicastSettings();
+            }
+        }, "ApplyMulticastUnicast").start();
     }
 
     /**

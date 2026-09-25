@@ -75,6 +75,11 @@ public class PropertyFileSettingsLoader {
             setNetworkMode(settings, fileContents);
             setSound(settings, fileContents);
             setSmileys(settings, fileContents);
+            setThemeMode(settings, fileContents);
+            setThemeDarkHours(settings, fileContents);
+            setAutoAcceptFiles(settings, fileContents);
+            setMulticastUnicastMode(settings, fileContents);
+            setAutoEncryptUnicast(settings, fileContents);
         }
 
         catch (final FileNotFoundException e) {
@@ -161,6 +166,62 @@ public class PropertyFileSettingsLoader {
         // Defaults to true
         if (fileContents.getProperty(SMILEYS.getKey()) != null) {
             settings.setSmileys(Boolean.valueOf(fileContents.getProperty(SMILEYS.getKey())));
+        }
+    }
+
+    private void setThemeMode(final Settings settings, final Properties fileContents) {
+        // Defaults to LIGHT (from Settings constructor) if absent or unknown.
+        final String value = fileContents.getProperty(THEME_MODE.getKey());
+        if (value != null) {
+            settings.setThemeMode(ThemeMode.fromKey(value));
+        }
+    }
+
+    private void setThemeDarkHours(final Settings settings, final Properties fileContents) {
+        loadThemeHour(settings, fileContents, THEME_DARK_START_HOUR, true);
+        loadThemeHour(settings, fileContents, THEME_DARK_END_HOUR, false);
+    }
+
+    private void loadThemeHour(final Settings settings, final Properties fileContents,
+                               final PropertyFileSettings setting, final boolean startHour) {
+        try {
+            final int hour = Integer.parseInt(fileContents.getProperty(setting.getKey()));
+
+            if (startHour) {
+                settings.setThemeDarkStartHour(hour);
+            }
+
+            else {
+                settings.setThemeDarkEndHour(hour);
+            }
+        }
+
+        catch (final NumberFormatException e) {
+            LOG.log(Level.WARNING, "Could not read setting for " + setting.getKey() + ", using default.");
+        }
+    }
+
+    private void setAutoAcceptFiles(final Settings settings, final Properties fileContents) {
+        // Defaults to IMAGES (from Settings constructor) if absent or unknown.
+        final String value = fileContents.getProperty(AUTO_ACCEPT_FILES.getKey());
+        if (value != null) {
+            settings.setAutoAcceptFiles(AutoAcceptFiles.fromKey(value));
+        }
+    }
+
+    private void setMulticastUnicastMode(final Settings settings, final Properties fileContents) {
+        // Defaults to ALL (from Settings constructor) if absent or unknown.
+        final String value = fileContents.getProperty(MULTICAST_UNICAST_MODE.getKey());
+        if (value != null) {
+            settings.setMulticastUnicastMode(MulticastUnicastMode.fromKey(value));
+        }
+    }
+
+    private void setAutoEncryptUnicast(final Settings settings, final Properties fileContents) {
+        // Defaults to true
+        final String value = fileContents.getProperty(AUTO_ENCRYPT_UNICAST.getKey());
+        if (value != null) {
+            settings.setAutoEncryptUnicast(Boolean.valueOf(value));
         }
     }
 }

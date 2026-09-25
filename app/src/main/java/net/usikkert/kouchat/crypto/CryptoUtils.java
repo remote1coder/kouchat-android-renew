@@ -30,11 +30,14 @@ import java.security.PrivateKey;
 import java.security.PublicKey;
 import java.security.SecureRandom;
 import java.security.Signature;
+import java.security.spec.MGF1ParameterSpec;
 
 import javax.crypto.Cipher;
 import javax.crypto.KeyGenerator;
 import javax.crypto.SecretKey;
 import javax.crypto.spec.GCMParameterSpec;
+import javax.crypto.spec.OAEPParameterSpec;
+import javax.crypto.spec.PSource;
 import javax.crypto.spec.SecretKeySpec;
 
 import net.usikkert.kouchat.util.Validate;
@@ -72,6 +75,19 @@ public final class CryptoUtils {
 
     /** RSA cipher used to wrap the AES session key. */
     static final String RSA_OAEP_CIPHER = "RSA/ECB/OAEPWithSHA-256AndMGF1Padding";
+
+    /**
+     * Explicit OAEP parameters for wrapping the session key.
+     *
+     * <p>The cipher transformation alone is not enough: the MGF1 digest of
+     * {@code OAEPWithSHA-256AndMGF1Padding} defaults to SHA-1 on Oracle/OpenJDK,
+     * but to SHA-256 on Android's crypto providers (Conscrypt/BouncyCastle).
+     * A key wrapped on Android could then not be unwrapped on the desktop (and
+     * the other way around), failing with a padding error. The explicit
+     * parameters make both platforms use the same digest combination.</p>
+     */
+    static final OAEPParameterSpec RSA_OAEP_PARAMS = new OAEPParameterSpec(
+            "SHA-256", "MGF1", MGF1ParameterSpec.SHA1, PSource.PSpecified.DEFAULT);
 
     /** AES cipher used for message encryption. */
     static final String AES_GCM_CIPHER = "AES/GCM/NoPadding";
@@ -203,7 +219,7 @@ public final class CryptoUtils {
 
         try {
             final Cipher cipher = Cipher.getInstance(RSA_OAEP_CIPHER);
-            cipher.init(Cipher.ENCRYPT_MODE, peerPublicKey);
+            cipher.init(Cipher.ENCRYPT_MODE, peerPublicKey, RSA_OAEP_PARAMS);
             return base64Encode(cipher.doFinal(sessionKey.getEncoded()));
         }
 
@@ -225,7 +241,7 @@ public final class CryptoUtils {
 
         try {
             final Cipher cipher = Cipher.getInstance(RSA_OAEP_CIPHER);
-            cipher.init(Cipher.DECRYPT_MODE, myPrivateKey);
+            cipher.init(Cipher.DECRYPT_MODE, myPrivateKey, RSA_OAEP_PARAMS);
             final byte[] keyBytes = cipher.doFinal(base64Decode(wrapped));
             return new SecretKeySpec(keyBytes, "AES");
         }

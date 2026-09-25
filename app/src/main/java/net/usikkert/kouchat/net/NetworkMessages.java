@@ -154,6 +154,23 @@ public class NetworkMessages {
     }
 
     /**
+     * Sends a normal chat message directly to a single user, with the same wire
+     * format as {@link #sendChatMessage(String)}. Used in UNICAST network mode,
+     * where group chat is sent point-to-point instead of multicast.
+     *
+     * @param chatMsg The message for the main chat.
+     * @param user The user to send the message to.
+     * @return If the message was sent or not.
+     */
+    public boolean sendChatMessageToUser(final String chatMsg, final User user) {
+        final String msg = createMessage(MSG) +
+                "[" + settings.getOwnColor() + "]" +
+                chatMsg;
+
+        return networkService.sendChatMessageToUser(msg, user);
+    }
+
+    /**
      * Sends a message to log this client on the network.
      */
     public void sendLogonMessage() {

@@ -44,6 +44,9 @@ public class Setting {
     /** Maps to {@link Settings#isSystemTray()}. */
     public static final Setting SYSTEM_TRAY = new Setting("SYSTEM_TRAY");
 
+    /** Maps to {@link Settings#setThemeMode(ThemeMode)} and the dark theme hour settings. */
+    public static final Setting THEME = new Setting("THEME");
+
     private final String name; // Must be unique
 
     protected Setting(@NonNls final String name) {

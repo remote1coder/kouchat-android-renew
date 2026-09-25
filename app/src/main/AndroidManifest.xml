@@ -18,7 +18,7 @@
   <application android:label="@string/app_name"
                android:name=".app.KouChatApp"
                android:icon="@mipmap/ic_launcher"
-               android:theme="@style/Theme.KouChat.Light"
+               android:theme="@style/Theme.KouChat"
                android:allowBackup="true"
                tools:ignore="GoogleAppIndexingWarning">
 
@@ -55,17 +55,20 @@
 
     <!-- Sets taskAffinity to keep the previous KouChat activity from showing behind the dialog,
          and excludeFromRecents to keep the dialog from showing in the list of running apps. -->
+    <!-- uiMode is added to configChanges so a system dark mode change does not recreate the
+         dialog and lose the user's pending answer. -->
     <activity android:name=".controller.ReceiveFileController"
               android:theme="@style/Theme.KouChat.Dialog.Translucent"
               android:taskAffinity=""
+              android:configChanges="orientation|screenSize|keyboardHidden|screenLayout|smallestScreenSize|uiMode"
               android:excludeFromRecents="true"/>
 
-    <!-- configChanges: avoid recreation on rotation, which would destroy the dialog and
-         report an automatic "don't trust" before the user has answered. -->
+    <!-- configChanges: avoid recreation on rotation or a system dark mode change, which would
+         destroy the dialog and report an automatic "don't trust" before the user has answered. -->
     <activity android:name=".controller.TrustKeyController"
               android:theme="@style/Theme.KouChat.Dialog.Translucent"
               android:taskAffinity=""
-              android:configChanges="orientation|screenSize|keyboardHidden|screenLayout|smallestScreenSize"
+              android:configChanges="orientation|screenSize|keyboardHidden|screenLayout|smallestScreenSize|uiMode"
               android:excludeFromRecents="true"/>
 
     <service android:name=".service.ChatService"

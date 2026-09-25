@@ -98,10 +98,35 @@ public interface Constants {
     int NETWORK_FILE_TRANSFER_PORT = 40756;
 
     /**
+     * Maximum time in milliseconds to wait for the user to answer
+     * an incoming file transfer request (accept or reject), before
+     * the request is automatically rejected. This prevents a single
+     * unanswered request from blocking the transfer indefinitely
+     * on both sides.
+     */
+    int FILE_TRANSFER_ANSWER_TIMEOUT = 60000;
+
+    /**
+     * Maximum time in milliseconds for the sender to wait for the
+     * receiver to accept a file transfer request, before the
+     * transfer is automatically cancelled. A backstop for receivers
+     * that never answer the request.
+     */
+    int FILE_TRANSFER_SEND_WAIT_TIMEOUT = 60000;
+
+    /**
      * The size of the udp packets sent from normal and
      * private chats.
      */
     int NETWORK_PACKET_SIZE = 512;
+
+    /**
+     * The maximum size of a udp packet that can be received, in bytes. The
+     * receive buffer must be this large: messages like the crypto handshake
+     * (an RSA-4096 public key in base64) exceed the preferred packet size,
+     * and a smaller buffer would silently truncate them.
+     */
+    int NETWORK_PACKET_MAX_SIZE = 65507;
 
     /**
      * The multicast address used for sending and receiving

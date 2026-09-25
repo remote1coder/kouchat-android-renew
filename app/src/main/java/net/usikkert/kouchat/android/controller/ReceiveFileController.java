@@ -30,9 +30,11 @@ import net.usikkert.kouchat.android.service.ChatServiceBinder;
 import net.usikkert.kouchat.net.FileReceiver;
 
 import android.Manifest;
+import android.content.BroadcastReceiver;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.ServiceConnection;
 import android.content.pm.PackageManager;
 import android.os.Bundle;
@@ -53,14 +55,33 @@ public class ReceiveFileController extends AppCompatActivity {
     private static final int WRITE_REQUEST_CODE = 101;
     private static final String WRITE_EXTERNAL_STORAGE = Manifest.permission.WRITE_EXTERNAL_STORAGE;
 
+    /** Broadcast action used to close this dialog when the transfer request is no longer relevant. */
+    public static final String CANCEL_FILE_TRANSFER_ACTION = "net.usikkert.kouchat.android.CANCEL_FILE_TRANSFER";
+
     private ReceiveFileDialog receiveFileDialog = new ReceiveFileDialog();
 
     private ServiceConnection serviceConnection;
     private FileReceiver fileReceiver;
 
+    /** Closes this dialog activity when the file transfer request times out or is aborted. */
+    private final BroadcastReceiver cancelReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(final Context context, final Intent intent) {
+            final int userCode = getIntent().getIntExtra("userCode", -1);
+            final int fileTransferId = getIntent().getIntExtra("fileTransferId", -1);
+
+            if (intent.getIntExtra("userCode", -2) == userCode
+                    && intent.getIntExtra("fileTransferId", -2) == fileTransferId) {
+                finish();
+            }
+        }
+    };
+
     @Override
     public void onCreate(final Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+
+        registerReceiver(cancelReceiver, new IntentFilter(CANCEL_FILE_TRANSFER_ACTION));
 
         final Intent chatServiceIntent = createChatServiceIntent();
         serviceConnection = createServiceConnection();
@@ -80,6 +101,7 @@ public class ReceiveFileController extends AppCompatActivity {
 
     @Override
     protected void onDestroy() {
+        unregisterReceiver(cancelReceiver);
         unbindService(serviceConnection);
 
         serviceConnection = null;

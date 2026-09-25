@@ -31,6 +31,7 @@ import net.usikkert.kouchat.android.component.GoAwayDialog;
 import net.usikkert.kouchat.android.component.TopicDialog;
 import net.usikkert.kouchat.android.service.ChatService;
 import net.usikkert.kouchat.android.service.ChatServiceBinder;
+import net.usikkert.kouchat.android.theme.AndroidThemeHelper;
 import net.usikkert.kouchat.android.userlist.UserListAdapter;
 import net.usikkert.kouchat.android.userlist.UserListAdapterWithChatState;
 import net.usikkert.kouchat.event.UserListListener;
@@ -296,6 +297,9 @@ public class MainChatController extends AppCompatActivity implements UserListLis
     protected void onResume() {
         super.onResume();
         visible = true;
+
+        // Re-evaluate the theme, so the automatic mode follows the time of day
+        AndroidThemeHelper.applyTheme(this);
 
         if (androidUserInterface != null) { // Is null during initial startup. Doesn't matter.
             androidUserInterface.resetAllMessageNotifications();

@@ -25,6 +25,9 @@ package net.usikkert.kouchat.net;
 import static org.junit.Assert.*;
 import static org.mockito.Mockito.*;
 
+import java.io.File;
+
+import net.usikkert.kouchat.crypto.CryptoManager;
 import net.usikkert.kouchat.junit.ExpectedException;
 import net.usikkert.kouchat.message.CoreMessages;
 import net.usikkert.kouchat.misc.ChatState;
@@ -35,6 +38,7 @@ import net.usikkert.kouchat.misc.Topic;
 import net.usikkert.kouchat.misc.User;
 import net.usikkert.kouchat.misc.UserList;
 import net.usikkert.kouchat.misc.WaitingList;
+import net.usikkert.kouchat.settings.AutoAcceptFiles;
 import net.usikkert.kouchat.settings.Settings;
 import net.usikkert.kouchat.ui.UserInterface;
 
@@ -42,6 +46,8 @@ import org.joda.time.DateTime;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
+import org.mockito.invocation.InvocationOnMock;
+import org.mockito.stubbing.Answer;
 
 /**
  * Test of {@link DefaultMessageResponder}.
@@ -402,5 +408,158 @@ public class DefaultMessageResponderTest {
     private void setUpUnknownUser() {
         when(controller.isNewUser(100)).thenReturn(true);
         when(controller.getUser(100)).thenReturn(null);
+    }
+
+    @Test
+    public void fileSendShouldAutoAcceptImageFromUserWithActiveEncryptedChannel() throws Exception {
+        final TransferList transferList = setUpFileSend(AutoAcceptFiles.IMAGES, true);
+        final FileReceiver fileReceiver = mockFileReceiver(transferList, "photo.png");
+
+        responder.fileSend(100, 1024, "photo.png", "Tester", 42);
+
+        verify(userInterface, never()).askFileSave(fileReceiver);
+        verify(fileReceiver).accept();
+        verify(userInterface).showTransfer(fileReceiver);
+        verify(controller).sendFileAccept(user, 40756, 42, "photo.png");
+        verify(fileReceiver).transfer();
+        verify(transferList).removeFileReceiver(fileReceiver);
+    }
+
+    @Test
+    public void fileSendShouldNotAutoAcceptWhenEncryptedChannelIsInactive() throws Exception {
+        final TransferList transferList = setUpFileSend(AutoAcceptFiles.IMAGES, false);
+        final FileReceiver fileReceiver = mockFileReceiver(transferList, "photo.png");
+
+        when(userInterface.askFileSave(fileReceiver)).thenReturn(false);
+
+        responder.fileSend(100, 1024, "photo.png", "Tester", 42);
+
+        verify(userInterface).askFileSave(fileReceiver);
+        verify(fileReceiver, never()).accept();
+        verify(controller).sendFileAbort(user, 42, "photo.png");
+    }
+
+    @Test
+    public void fileSendShouldNotAutoAcceptWhenScopeIsOff() throws Exception {
+        final TransferList transferList = setUpFileSend(AutoAcceptFiles.OFF, true);
+        final FileReceiver fileReceiver = mockFileReceiver(transferList, "photo.png");
+
+        when(userInterface.askFileSave(fileReceiver)).thenReturn(false);
+
+        responder.fileSend(100, 1024, "photo.png", "Tester", 42);
+
+        verify(userInterface).askFileSave(fileReceiver);
+        verify(fileReceiver, never()).accept();
+    }
+
+    @Test
+    public void fileSendShouldNotAutoAcceptNonImageWhenScopeIsImages() throws Exception {
+        final TransferList transferList = setUpFileSend(AutoAcceptFiles.IMAGES, true);
+        final FileReceiver fileReceiver = mockFileReceiver(transferList, "notes.txt");
+
+        when(userInterface.askFileSave(fileReceiver)).thenReturn(false);
+
+        responder.fileSend(100, 1024, "notes.txt", "Tester", 42);
+
+        verify(userInterface).askFileSave(fileReceiver);
+        verify(fileReceiver, never()).accept();
+    }
+
+    @Test
+    public void fileSendShouldAutoAcceptAnyFileWhenScopeIsAll() throws Exception {
+        final TransferList transferList = setUpFileSend(AutoAcceptFiles.ALL, true);
+        final FileReceiver fileReceiver = mockFileReceiver(transferList, "notes.txt");
+
+        responder.fileSend(100, 1024, "notes.txt", "Tester", 42);
+
+        verify(userInterface, never()).askFileSave(fileReceiver);
+        verify(fileReceiver).accept();
+        verify(controller).sendFileAccept(user, 40756, 42, "notes.txt");
+    }
+
+    @Test
+    public void fileSendShouldRejectAutomaticallyWhenUserDoesNotAnswerInTime() {
+        final TransferList transferList = setUpFileSend(AutoAcceptFiles.IMAGES, false);
+        final FileReceiver fileReceiver = realFileReceiver(transferList, "photo.png");
+
+        responder.setFileAnswerTimeout(100);
+
+        // Simulate a user interface that blocks for longer than the timeout
+        when(userInterface.askFileSave(fileReceiver)).thenAnswer(new Answer<Boolean>() {
+            @Override
+            public Boolean answer(final InvocationOnMock invocation) throws Throwable {
+                Thread.sleep(400);
+                return false;
+            }
+        });
+
+        responder.fileSend(100, 1024, "photo.png", "Tester", 42);
+
+        assertTrue(fileReceiver.isTimedOut());
+        assertTrue(fileReceiver.isCanceled());
+        verify(userInterface).cancelFileSavePrompt(fileReceiver);
+        verify(controller).sendFileAbort(user, 42, "photo.png");
+        verify(transferList).removeFileReceiver(fileReceiver);
+    }
+
+    /**
+     * Sets up the mocks needed for the fileSend tests, and returns the mocked transfer list.
+     *
+     * @param autoAcceptFiles The auto-accept scope to use.
+     * @param channelActive If the encrypted channel with the user should be active.
+     * @return The mocked transfer list.
+     */
+    private TransferList setUpFileSend(final AutoAcceptFiles autoAcceptFiles, final boolean channelActive) {
+        setUpExistingUser();
+
+        settings.setAutoAcceptFiles(autoAcceptFiles);
+
+        final CryptoManager cryptoManager = mock(CryptoManager.class);
+        when(cryptoManager.isChannelActive(user)).thenReturn(channelActive);
+        when(controller.getCryptoManager()).thenReturn(cryptoManager);
+
+        final TransferList transferList = mock(TransferList.class);
+        when(controller.getTransferList()).thenReturn(transferList);
+
+        // The responder captures the transfer list in the constructor,
+        // so a new one is needed now that the stub is in place
+        responder = new DefaultMessageResponder(controller, userInterface, settings, coreMessages);
+
+        return transferList;
+    }
+
+    /**
+     * Creates a mocked file receiver, registered with the transfer list.
+     *
+     * @param transferList The mocked transfer list.
+     * @param fileName The name of the file.
+     * @return The mocked file receiver.
+     * @throws ServerException If stubbing of startServer fails.
+     */
+    private FileReceiver mockFileReceiver(final TransferList transferList, final String fileName) throws ServerException {
+        final FileReceiver fileReceiver = mock(FileReceiver.class);
+        when(fileReceiver.getId()).thenReturn(7);
+        when(fileReceiver.getFile()).thenReturn(new File(System.getProperty("java.io.tmpdir"), fileName));
+        when(fileReceiver.startServer()).thenReturn(40756);
+        when(fileReceiver.transfer()).thenReturn(true);
+        when(transferList.addFileReceiver(eq(user), any(File.class), eq(1024L))).thenReturn(fileReceiver);
+
+        return fileReceiver;
+    }
+
+    /**
+     * Creates a real file receiver, registered with the transfer list. Used
+     * where the answer state machine of the receiver matters.
+     *
+     * @param transferList The mocked transfer list.
+     * @param fileName The name of the file.
+     * @return The real file receiver.
+     */
+    private FileReceiver realFileReceiver(final TransferList transferList, final String fileName) {
+        final FileReceiver fileReceiver =
+                new FileReceiver(user, new File(System.getProperty("java.io.tmpdir"), fileName), 1024, 7);
+        when(transferList.addFileReceiver(eq(user), any(File.class), eq(1024L))).thenReturn(fileReceiver);
+
+        return fileReceiver;
     }
 }

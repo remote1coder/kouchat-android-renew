@@ -46,6 +46,45 @@
   <string name="settings_network_mode_unicast">Unicast (no encryption)</string>
   <string name="settings_network_mode_p2p">P2P (encrypted mesh)</string>
 
+  <string name="settings_theme_mode_key">theme_mode</string>
+  <string name="settings_theme_mode_title">Theme mode</string>
+  <string name="settings_theme_mode_summary">Automatic switches between light and dark theme based on the time of day. Follow system uses the theme of the operating system.</string>
+  <string name="settings_theme_mode_dialog_title">Theme mode</string>
+  <string name="settings_theme_mode_auto">Automatic (time of day)</string>
+  <string name="settings_theme_mode_system">Follow system theme</string>
+  <string name="settings_theme_mode_light">Light</string>
+  <string name="settings_theme_mode_dark">Dark</string>
+
+  <string name="settings_dark_start_hour_key">dark_start_hour</string>
+  <string name="settings_dark_start_hour_title">Dark theme starts at</string>
+  <string name="settings_dark_start_hour_summary">The hour of the day the dark theme starts, when the theme mode is automatic.</string>
+  <string name="settings_dark_start_hour_dialog_title">Dark theme starts at</string>
+
+  <string name="settings_dark_end_hour_key">dark_end_hour</string>
+  <string name="settings_dark_end_hour_title">Dark theme ends at</string>
+  <string name="settings_dark_end_hour_summary">The hour of the day the dark theme ends, when the theme mode is automatic.</string>
+  <string name="settings_dark_end_hour_dialog_title">Dark theme ends at</string>
+
+  <string name="settings_auto_accept_files_key">auto_accept_files</string>
+  <string name="settings_auto_accept_files_title">Auto-accept files from encrypted users</string>
+  <string name="settings_auto_accept_files_summary">Files from users with an active end-to-end encrypted channel are accepted automatically, without asking. Images only by default.</string>
+  <string name="settings_auto_accept_files_dialog_title">Auto-accept files</string>
+  <string name="settings_auto_accept_off">Disabled</string>
+  <string name="settings_auto_accept_images">Images only</string>
+  <string name="settings_auto_accept_all">All files</string>
+
+  <string name="settings_multicast_unicast_key">multicast_unicast_mode</string>
+  <string name="settings_multicast_unicast_title">Automatic unicast channels</string>
+  <string name="settings_multicast_unicast_summary">Some networks drop multicast packets, which can make messages disappear in one direction. Automatic unicast channels also send every message directly to the peer, and duplicates are removed on the receiving side.</string>
+  <string name="settings_multicast_unicast_dialog_title">Automatic unicast channels</string>
+  <string name="settings_multicast_unicast_all">All new devices</string>
+  <string name="settings_multicast_unicast_trusted">Trusted devices only</string>
+  <string name="settings_multicast_unicast_off">Off</string>
+
+  <string name="settings_auto_encrypt_unicast_key">auto_encrypt_unicast</string>
+  <string name="settings_auto_encrypt_unicast_title">Initiate encrypted handshake automatically</string>
+  <string name="settings_auto_encrypt_unicast_summary">Initiates the end-to-end encryption handshake with peers that get an automatic unicast channel, so private chats are encrypted without further steps. Group chat in multicast mode is still sent unencrypted.</string>
+
   <string name="main_chat_status_network_mode">Network: %1$s</string>
   <string name="main_chat_status_mode_multicast">Multicast</string>
   <string name="main_chat_status_mode_broadcast">Broadcast</string>
