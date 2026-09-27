@@ -77,6 +77,8 @@ public class AndroidSettingsLoader {
         loadThemeMode(context, preferences, settings);
         loadDarkStartHour(context, preferences, settings);
         loadDarkEndHour(context, preferences, settings);
+        loadFontName(context, preferences, settings);
+        loadFontSize(context, preferences, settings);
         loadAutoAcceptFiles(context, preferences, settings);
         loadMulticastUnicastMode(context, preferences, settings);
         loadAutoEncryptUnicast(context, preferences, settings);
@@ -195,6 +197,29 @@ public class AndroidSettingsLoader {
         }
 
         return defaultHour;
+    }
+
+    private void loadFontName(final Context context, final SharedPreferences preferences,
+                              final AndroidSettings settings) {
+        final String preferenceKey = context.getString(R.string.settings_font_family_key);
+        final String value = preferences.getString(preferenceKey, "");
+
+        // "" is the "default font" choice, and also the default in Settings.
+        settings.setFontName(value != null ? value : "");
+    }
+
+    private void loadFontSize(final Context context, final SharedPreferences preferences,
+                              final AndroidSettings settings) {
+        final String preferenceKey = context.getString(R.string.settings_font_size_key);
+        final String value = preferences.getString(preferenceKey, "0");
+
+        try {
+            settings.setFontSize(Integer.parseInt(value));
+        }
+
+        catch (final NumberFormatException e) {
+            settings.setFontSize(0);
+        }
     }
 
     private void loadAutoAcceptFiles(final Context context, final SharedPreferences preferences,

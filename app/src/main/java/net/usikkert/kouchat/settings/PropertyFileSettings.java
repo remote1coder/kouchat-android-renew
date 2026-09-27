@@ -46,6 +46,8 @@ public enum PropertyFileSettings {
     THEME_MODE("themeMode"),
     THEME_DARK_START_HOUR("themeDarkStartHour"),
     THEME_DARK_END_HOUR("themeDarkEndHour"),
+    FONT_NAME("fontName"),
+    FONT_SIZE("fontSize"),
     AUTO_ACCEPT_FILES("autoAcceptFiles"),
     MULTICAST_UNICAST_MODE("multicastUnicastMode"),
     AUTO_ENCRYPT_UNICAST("autoEncryptUnicast");

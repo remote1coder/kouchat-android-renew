@@ -29,6 +29,10 @@ This fork extends KouChat Android v1.5.0 with the following features (details in
 - **Dark / night mode** (Settings -> Theme mode): switch between light and dark
   theme **automatically by time of day** (default 18:00–09:00, configurable),
   by **following the system theme**, or **manually**.
+- **Chat font and font size** (Settings -> Chat font / Chat font size): choose
+  the font family (Sans Serif, Serif, Monospace, ...) and size (10–40 sp) for
+  the chat and the chat input. Applies immediately, including the chat history
+  already shown.
 - **File transfer timeouts**: a file transfer request that is not answered
   within 60 seconds is automatically rejected, so unanswered requests no longer
   block transfers.

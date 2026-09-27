@@ -79,6 +79,8 @@ public class SettingsFragment extends PreferenceFragmentCompat
     private String themeModeKey;
     private String darkStartHourKey;
     private String darkEndHourKey;
+    private String fontFamilyKey;
+    private String fontSizeKey;
     private String autoAcceptFilesKey;
     private String multicastUnicastKey;
     private String autoEncryptUnicastKey;
@@ -109,6 +111,8 @@ public class SettingsFragment extends PreferenceFragmentCompat
         themeModeKey = getString(R.string.settings_theme_mode_key);
         darkStartHourKey = getString(R.string.settings_dark_start_hour_key);
         darkEndHourKey = getString(R.string.settings_dark_end_hour_key);
+        fontFamilyKey = getString(R.string.settings_font_family_key);
+        fontSizeKey = getString(R.string.settings_font_size_key);
         autoAcceptFilesKey = getString(R.string.settings_auto_accept_files_key);
         multicastUnicastKey = getString(R.string.settings_multicast_unicast_key);
         autoEncryptUnicastKey = getString(R.string.settings_auto_encrypt_unicast_key);
@@ -150,6 +154,18 @@ public class SettingsFragment extends PreferenceFragmentCompat
 
         if (darkEndHourPreference != null) {
             updateHourSummary(darkEndHourPreference);
+        }
+
+        final ListPreference fontFamilyPreference = findPreference(fontFamilyKey);
+
+        if (fontFamilyPreference != null) {
+            updateFontFamilySummary(fontFamilyPreference);
+        }
+
+        final ListPreference fontSizePreference = findPreference(fontSizeKey);
+
+        if (fontSizePreference != null) {
+            updateFontSizeSummary(fontSizePreference);
         }
 
         final ListPreference autoAcceptFilesPreference = findPreference(autoAcceptFilesKey);
@@ -265,6 +281,33 @@ public class SettingsFragment extends PreferenceFragmentCompat
 
             if (settings != null) {
                 settings.setThemeDarkEndHour(Integer.parseInt(preference.getValue()));
+            }
+        }
+
+        else if (key.equals(fontFamilyKey)) {
+            final ListPreference preference = (ListPreference) findPreference(key);
+            updateFontFamilySummary(preference);
+
+            if (settings != null && androidUserInterface != null) {
+                settings.setFontName(preference.getValue() != null ? preference.getValue() : "");
+                androidUserInterface.applyFontSettings();
+            }
+        }
+
+        else if (key.equals(fontSizeKey)) {
+            final ListPreference preference = (ListPreference) findPreference(key);
+            updateFontSizeSummary(preference);
+
+            if (settings != null && androidUserInterface != null) {
+                try {
+                    settings.setFontSize(Integer.parseInt(preference.getValue()));
+                }
+
+                catch (final NumberFormatException e) {
+                    settings.setFontSize(0);
+                }
+
+                androidUserInterface.applyFontSettings();
             }
         }
 
@@ -519,6 +562,41 @@ public class SettingsFragment extends PreferenceFragmentCompat
         if (entry != null) {
             preference.setSummary(entry);
         }
+    }
+
+    /**
+     * Updates the summary of the font family preference to show the current selection.
+     *
+     * <p>The default choice is stored as an empty string, which has no matching entry
+     * in the list, so the default label is used for it.</p>
+     *
+     * @param preference The font family preference.
+     */
+    private void updateFontFamilySummary(final ListPreference preference) {
+        CharSequence entry = preference.getEntry();
+
+        if (entry == null || entry.length() == 0) {
+            entry = getString(R.string.settings_font_family_default);
+        }
+
+        preference.setSummary(entry);
+    }
+
+    /**
+     * Updates the summary of the font size preference to show the current selection.
+     *
+     * <p>The default choice is stored as "0", which has the default label as entry.</p>
+     *
+     * @param preference The font size preference.
+     */
+    private void updateFontSizeSummary(final ListPreference preference) {
+        CharSequence entry = preference.getEntry();
+
+        if (entry == null || entry.length() == 0) {
+            entry = getString(R.string.settings_font_size_default);
+        }
+
+        preference.setSummary(entry);
     }
 
     /**

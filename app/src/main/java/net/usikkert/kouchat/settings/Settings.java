@@ -89,6 +89,12 @@ public class Settings {
     /** The hour of the day the dark theme ends, when the theme mode is automatic. */
     private int themeDarkEndHour;
 
+    /** The font family for the chat text, or an empty string to use the default font. */
+    private String fontName;
+
+    /** The font size for the chat text, or 0 to use the default size. */
+    private int fontSize;
+
     /** The scope of files automatically accepted from users with an active encrypted channel. */
     private AutoAcceptFiles autoAcceptFiles;
 
@@ -132,6 +138,8 @@ public class Settings {
         themeMode = ThemeMode.LIGHT;
         themeDarkStartHour = 18;
         themeDarkEndHour = 9;
+        fontName = "";
+        fontSize = 0;
         autoAcceptFiles = AutoAcceptFiles.IMAGES;
         multicastUnicastMode = MulticastUnicastMode.ALL;
         autoEncryptUnicast = true;
@@ -528,6 +536,57 @@ public class Settings {
         if (this.themeDarkEndHour != darkEndHour) {
             this.themeDarkEndHour = darkEndHour;
             fireSettingChanged(Setting.THEME);
+        }
+    }
+
+    /**
+     * Gets the font family for the chat text.
+     *
+     * @return The font family, or an empty string to use the default font.
+     */
+    public String getFontName() {
+        return fontName;
+    }
+
+    /**
+     * Sets the font family for the chat text.
+     * Listeners are notified of the change.
+     *
+     * @param fontName The font family to use, or an empty string (or null) for the default font.
+     */
+    public void setFontName(final String fontName) {
+        final String newFontName = fontName == null ? "" : fontName;
+
+        if (!this.fontName.equals(newFontName)) {
+            this.fontName = newFontName;
+            fireSettingChanged(Setting.FONT);
+        }
+    }
+
+    /**
+     * Gets the font size for the chat text.
+     *
+     * @return The font size, or 0 to use the default size.
+     */
+    public int getFontSize() {
+        return fontSize;
+    }
+
+    /**
+     * Sets the font size for the chat text.
+     * Listeners are notified of the change.
+     *
+     * @param fontSize The font size to use, or 0 for the default size.
+     *        Values outside 8-64 (except 0) are ignored.
+     */
+    public void setFontSize(final int fontSize) {
+        if (fontSize != 0 && (fontSize < 8 || fontSize > 64)) {
+            return;
+        }
+
+        if (this.fontSize != fontSize) {
+            this.fontSize = fontSize;
+            fireSettingChanged(Setting.FONT);
         }
     }
 

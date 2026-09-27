@@ -77,6 +77,8 @@ public class PropertyFileSettingsLoader {
             setSmileys(settings, fileContents);
             setThemeMode(settings, fileContents);
             setThemeDarkHours(settings, fileContents);
+            setFontName(settings, fileContents);
+            setFontSize(settings, fileContents);
             setAutoAcceptFiles(settings, fileContents);
             setMulticastUnicastMode(settings, fileContents);
             setAutoEncryptUnicast(settings, fileContents);
@@ -198,6 +200,26 @@ public class PropertyFileSettingsLoader {
 
         catch (final NumberFormatException e) {
             LOG.log(Level.WARNING, "Could not read setting for " + setting.getKey() + ", using default.");
+        }
+    }
+
+    private void setFontName(final Settings settings, final Properties fileContents) {
+        // Defaults to "" (default font, from the Settings constructor) if absent.
+        final String value = fileContents.getProperty(FONT_NAME.getKey());
+
+        if (value != null) {
+            settings.setFontName(value);
+        }
+    }
+
+    private void setFontSize(final Settings settings, final Properties fileContents) {
+        // Defaults to 0 (default size, from the Settings constructor) if absent or invalid.
+        try {
+            settings.setFontSize(Integer.parseInt(fileContents.getProperty(FONT_SIZE.getKey())));
+        }
+
+        catch (final NumberFormatException e) {
+            LOG.log(Level.WARNING, "Could not read setting for fontSize, using default.");
         }
     }
 

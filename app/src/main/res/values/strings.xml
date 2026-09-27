@@ -65,6 +65,25 @@
   <string name="settings_dark_end_hour_summary">The hour of the day the dark theme ends, when the theme mode is automatic.</string>
   <string name="settings_dark_end_hour_dialog_title">Dark theme ends at</string>
 
+  <string name="settings_font_family_key">font_family</string>
+  <string name="settings_font_family_title">Chat font</string>
+  <string name="settings_font_family_summary">The font used for chat messages and the chat input field. Default uses the font of the system.</string>
+  <string name="settings_font_family_dialog_title">Chat font</string>
+  <string name="settings_font_family_default">Default</string>
+  <string name="settings_font_family_sans_serif">Sans Serif</string>
+  <string name="settings_font_family_sans_serif_light">Sans Serif Light</string>
+  <string name="settings_font_family_sans_serif_condensed">Sans Serif Condensed</string>
+  <string name="settings_font_family_sans_serif_thin">Sans Serif Thin</string>
+  <string name="settings_font_family_serif">Serif</string>
+  <string name="settings_font_family_serif_monospace">Serif Monospace</string>
+  <string name="settings_font_family_monospace">Monospace</string>
+
+  <string name="settings_font_size_key">font_size</string>
+  <string name="settings_font_size_title">Chat font size</string>
+  <string name="settings_font_size_summary">The font size used for chat messages and the chat input field. Default uses the size of the system.</string>
+  <string name="settings_font_size_dialog_title">Chat font size</string>
+  <string name="settings_font_size_default">Default</string>
+
   <string name="settings_auto_accept_files_key">auto_accept_files</string>
   <string name="settings_auto_accept_files_title">Auto-accept files from encrypted users</string>
   <string name="settings_auto_accept_files_summary">Files from users with an active end-to-end encrypted channel are accepted automatically, without asking. Images only by default.</string>

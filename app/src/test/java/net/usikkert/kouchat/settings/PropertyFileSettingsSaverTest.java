@@ -146,6 +146,8 @@ public class PropertyFileSettingsSaverTest {
         settings.setThemeMode(ThemeMode.SYSTEM);
         settings.setThemeDarkStartHour(19);
         settings.setThemeDarkEndHour(7);
+        settings.setFontName("Verdana");
+        settings.setFontSize(16);
         settings.setAutoAcceptFiles(AutoAcceptFiles.OFF);
         settings.setMulticastUnicastMode(MulticastUnicastMode.TRUSTED);
         settings.setAutoEncryptUnicast(false);
@@ -158,7 +160,7 @@ public class PropertyFileSettingsSaverTest {
 
         final Properties properties = propertiesCaptor.getValue();
 
-        assertEquals(18, properties.size());
+        assertEquals(20, properties.size());
 
         assertEquals("Linda", properties.get(NICK_NAME.getKey()));
         assertEquals("100", properties.get(OWN_COLOR.getKey()));
@@ -175,6 +177,8 @@ public class PropertyFileSettingsSaverTest {
         assertEquals("system", properties.get(THEME_MODE.getKey()));
         assertEquals("19", properties.get(THEME_DARK_START_HOUR.getKey()));
         assertEquals("7", properties.get(THEME_DARK_END_HOUR.getKey()));
+        assertEquals("Verdana", properties.get(FONT_NAME.getKey()));
+        assertEquals("16", properties.get(FONT_SIZE.getKey()));
         assertEquals("off", properties.get(AUTO_ACCEPT_FILES.getKey()));
         assertEquals("trusted", properties.get(MULTICAST_UNICAST_MODE.getKey()));
         assertEquals("false", properties.get(AUTO_ENCRYPT_UNICAST.getKey()));
@@ -186,6 +190,7 @@ public class PropertyFileSettingsSaverTest {
         settings.setBrowser(null);
         settings.setLookAndFeel(null);
         settings.setNetworkInterface(null);
+        settings.setFontName(null);
 
         settingsSaver.saveSettings();
 
@@ -195,11 +200,13 @@ public class PropertyFileSettingsSaverTest {
 
         final Properties properties = propertiesCaptor.getValue();
 
-        assertEquals(18, properties.size());
+        assertEquals(20, properties.size());
 
         assertEquals("", properties.get(NICK_NAME.getKey()));
         assertEquals("", properties.get(BROWSER.getKey()));
         assertEquals("", properties.get(LOOK_AND_FEEL.getKey()));
         assertEquals("", properties.get(NETWORK_INTERFACE.getKey()));
+        assertEquals("", properties.get(FONT_NAME.getKey()));
+        assertEquals("0", properties.get(FONT_SIZE.getKey()));
     }
 }

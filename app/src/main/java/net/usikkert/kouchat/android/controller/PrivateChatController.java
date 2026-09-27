@@ -26,6 +26,7 @@ import net.usikkert.kouchat.android.R;
 import net.usikkert.kouchat.android.chatwindow.AndroidPrivateChatWindow;
 import net.usikkert.kouchat.android.chatwindow.AndroidUserInterface;
 import net.usikkert.kouchat.android.chatwindow.InlineImageViewer;
+import net.usikkert.kouchat.android.component.ChatFontHelper;
 import net.usikkert.kouchat.android.filetransfer.AndroidFileUtils;
 import net.usikkert.kouchat.android.service.ChatService;
 import net.usikkert.kouchat.android.service.ChatServiceBinder;
@@ -269,10 +270,21 @@ public class PrivateChatController extends AppCompatActivity {
             setTitle();
             resetNewPrivateMessageIcon();
             registerPrivateChatInputListener();
+            applyChatFont();
 
             // Actively start the encrypted handshake with this peer (like the Swing UI does
             // when opening a private chat). No-op if already established or unsupported.
             androidUserInterface.initiateEncryptedChat(user);
+        }
+    }
+
+    /**
+     * Applies the chat font family and size from the settings to the private chat
+     * view and the private chat input field. Also called when the font settings change.
+     */
+    public void applyChatFont() {
+        if (androidUserInterface != null) {
+            ChatFontHelper.apply(androidUserInterface.getSettings(), privateChatView, privateChatInput);
         }
     }
 

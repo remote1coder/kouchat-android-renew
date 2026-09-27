@@ -88,6 +88,8 @@ public class PropertyFileSettingsSaver implements SettingsSaver {
         properties.put(THEME_MODE.getKey(), settings.getThemeMode().getKey());
         properties.put(THEME_DARK_START_HOUR.getKey(), String.valueOf(settings.getThemeDarkStartHour()));
         properties.put(THEME_DARK_END_HOUR.getKey(), String.valueOf(settings.getThemeDarkEndHour()));
+        properties.put(FONT_NAME.getKey(), Tools.emptyIfNull(settings.getFontName()));
+        properties.put(FONT_SIZE.getKey(), String.valueOf(settings.getFontSize()));
         properties.put(AUTO_ACCEPT_FILES.getKey(), settings.getAutoAcceptFiles().getKey());
         properties.put(MULTICAST_UNICAST_MODE.getKey(), settings.getMulticastUnicastMode().getKey());
         properties.put(AUTO_ENCRYPT_UNICAST.getKey(), String.valueOf(settings.isAutoEncryptUnicast()));

@@ -26,6 +26,7 @@ import net.usikkert.kouchat.android.R;
 import net.usikkert.kouchat.android.chatwindow.AndroidUserInterface;
 import net.usikkert.kouchat.android.chatwindow.InlineImageViewer;
 import net.usikkert.kouchat.android.component.AboutDialog;
+import net.usikkert.kouchat.android.component.ChatFontHelper;
 import net.usikkert.kouchat.android.component.ComeBackDialog;
 import net.usikkert.kouchat.android.component.GoAwayDialog;
 import net.usikkert.kouchat.android.component.TopicDialog;
@@ -170,6 +171,7 @@ public class MainChatController extends AppCompatActivity implements UserListLis
                 androidUserInterface.registerMainChatController(MainChatController.this);
                 androidUserInterface.resetAllMessageNotifications();
                 androidUserInterface.showTopic();
+                applyChatFont();
 
                 userList = androidUserInterface.getUserList();
                 userList.addUserListListener(MainChatController.this);
@@ -179,6 +181,16 @@ public class MainChatController extends AppCompatActivity implements UserListLis
             @Override
             public void onServiceDisconnected(final ComponentName componentName) { }
         };
+    }
+
+    /**
+     * Applies the chat font family and size from the settings to the chat view
+     * and the chat input field. Also called when the font settings change.
+     */
+    public void applyChatFont() {
+        if (androidUserInterface != null) {
+            ChatFontHelper.apply(androidUserInterface.getSettings(), mainChatView, mainChatInput);
+        }
     }
 
     private void registerMainChatInputListener() {

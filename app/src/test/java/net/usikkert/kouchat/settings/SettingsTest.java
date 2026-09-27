@@ -198,6 +198,9 @@ public class SettingsTest {
         assertEquals(9, settings.getThemeDarkEndHour());
         assertEquals(AutoAcceptFiles.IMAGES, settings.getAutoAcceptFiles());
 
+        assertEquals("", settings.getFontName());
+        assertEquals(0, settings.getFontSize());
+
         assertEquals(MulticastUnicastMode.ALL, settings.getMulticastUnicastMode());
         assertTrue(settings.isAutoEncryptUnicast());
     }
@@ -210,6 +213,63 @@ public class SettingsTest {
 
         assertEquals(ThemeMode.DARK, settings.getThemeMode());
         assertEquals(Setting.THEME, lastChangedSetting);
+    }
+
+    @Test
+    public void setFontNameShouldNotifyListenersIfSettingIsChanged() {
+        assertEquals("", settings.getFontName());
+
+        settings.setFontName("Verdana");
+
+        assertEquals("Verdana", settings.getFontName());
+        assertEquals(Setting.FONT, lastChangedSetting);
+    }
+
+    @Test
+    public void setFontNameShouldNotNotifyListenersIfSettingIsUnchanged() {
+        settings.setFontName("");
+
+        assertEquals("", settings.getFontName());
+        assertNull(lastChangedSetting);
+    }
+
+    @Test
+    public void setFontNameShouldHandleNullAsDefault() {
+        settings.setFontName("Verdana");
+
+        settings.setFontName(null);
+
+        assertEquals("", settings.getFontName());
+    }
+
+    @Test
+    public void setFontSizeShouldNotifyListenersIfSettingIsChanged() {
+        assertEquals(0, settings.getFontSize());
+
+        settings.setFontSize(16);
+
+        assertEquals(16, settings.getFontSize());
+        assertEquals(Setting.FONT, lastChangedSetting);
+    }
+
+    @Test
+    public void setFontSizeShouldAllowZeroToResetToDefault() {
+        settings.setFontSize(16);
+
+        settings.setFontSize(0);
+
+        assertEquals(0, settings.getFontSize());
+    }
+
+    @Test
+    public void setFontSizeShouldIgnoreInvalidValues() {
+        settings.setFontSize(7);
+        assertEquals(0, settings.getFontSize());
+
+        settings.setFontSize(65);
+        assertEquals(0, settings.getFontSize());
+
+        assertNull(lastChangedSetting);
     }
 
     @Test

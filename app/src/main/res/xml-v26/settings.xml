@@ -82,6 +82,26 @@
       android:negativeButtonText="@string/cancel"/>
 
   <ListPreference
+      android:key="@string/settings_font_family_key"
+      android:title="@string/settings_font_family_title"
+      android:summary="@string/settings_font_family_summary"
+      android:dialogTitle="@string/settings_font_family_dialog_title"
+      android:entries="@array/font_family_entries"
+      android:entryValues="@array/font_family_values"
+      android:defaultValue=""
+      android:negativeButtonText="@string/cancel"/>
+
+  <ListPreference
+      android:key="@string/settings_font_size_key"
+      android:title="@string/settings_font_size_title"
+      android:summary="@string/settings_font_size_summary"
+      android:dialogTitle="@string/settings_font_size_dialog_title"
+      android:entries="@array/font_size_entries"
+      android:entryValues="@array/font_size_values"
+      android:defaultValue="0"
+      android:negativeButtonText="@string/cancel"/>
+
+  <ListPreference
       android:key="@string/settings_auto_accept_files_key"
       android:title="@string/settings_auto_accept_files_title"
       android:summary="@string/settings_auto_accept_files_summary"

@@ -47,6 +47,9 @@ public class Setting {
     /** Maps to {@link Settings#setThemeMode(ThemeMode)} and the dark theme hour settings. */
     public static final Setting THEME = new Setting("THEME");
 
+    /** Maps to {@link Settings#setFontName(String)} and {@link Settings#setFontSize(int)}. */
+    public static final Setting FONT = new Setting("FONT");
+
     private final String name; // Must be unique
 
     protected Setting(@NonNls final String name) {

@@ -59,6 +59,7 @@ import net.usikkert.kouchat.net.FileTransfer;
 import net.usikkert.kouchat.net.TransferList;
 import net.usikkert.kouchat.settings.NetworkMode;
 import net.usikkert.kouchat.ui.ChatWindow;
+import net.usikkert.kouchat.ui.PrivateChatWindow;
 import net.usikkert.kouchat.ui.UserInterface;
 import net.usikkert.kouchat.util.Sleeper;
 import net.usikkert.kouchat.util.Tools;
@@ -257,6 +258,29 @@ public class AndroidUserInterface implements UserInterface, ChatWindow, TrustPro
                 showTopic();
             }
         }, "SetNetworkMode").start();
+    }
+
+    /**
+     * Applies the chat font family and size from the settings to the main chat
+     * and the currently open private chats. Called after the font settings have
+     * changed.
+     */
+    public void applyFontSettings() {
+        if (mainChatController != null) {
+            mainChatController.applyChatFont();
+        }
+
+        // Hold the user list lock while iterating, so a concurrent add/remove
+        // (from the network thread) can't shrink the list mid-iteration.
+        synchronized (userList) {
+            for (int i = 0; i < userList.size(); i++) {
+                final PrivateChatWindow privchat = userList.get(i).getPrivchat();
+
+                if (privchat instanceof AndroidPrivateChatWindow) {
+                    ((AndroidPrivateChatWindow) privchat).applyChatFont();
+                }
+            }
+        }
     }
 
     /**

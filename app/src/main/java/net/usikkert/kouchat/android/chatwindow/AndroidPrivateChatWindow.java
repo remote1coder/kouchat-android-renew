@@ -61,6 +61,16 @@ public class AndroidPrivateChatWindow implements PrivateChatWindow {
         privateChatController = null;
     }
 
+    /**
+     * Applies the chat font family and size from the settings to the private
+     * chat view and input field, if the private chat is currently open.
+     */
+    public void applyChatFont() {
+        if (privateChatController != null) {
+            privateChatController.applyChatFont();
+        }
+    }
+
     @Override
     public void appendToPrivateChat(final String privateMessage, final int color) {
         Validate.notEmpty(privateMessage, "Private message can not be empty");

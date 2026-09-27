@@ -107,8 +107,10 @@ public class PropertyFileSettingsLoaderTest {
         properties.setProperty(AUTO_ACCEPT_FILES.getKey(), "all");
         properties.setProperty(MULTICAST_UNICAST_MODE.getKey(), "trusted");
         properties.setProperty(AUTO_ENCRYPT_UNICAST.getKey(), "false");
+        properties.setProperty(FONT_NAME.getKey(), "Verdana");
+        properties.setProperty(FONT_SIZE.getKey(), "16");
 
-        assertEquals(17, properties.size());
+        assertEquals(19, properties.size());
 
         when(propertyTools.loadProperties(anyString())).thenReturn(properties);
 
@@ -132,6 +134,8 @@ public class PropertyFileSettingsLoaderTest {
         assertEquals(ThemeMode.DARK, settings.getThemeMode());
         assertEquals(20, settings.getThemeDarkStartHour());
         assertEquals(8, settings.getThemeDarkEndHour());
+        assertEquals("Verdana", settings.getFontName());
+        assertEquals(16, settings.getFontSize());
         assertEquals(AutoAcceptFiles.ALL, settings.getAutoAcceptFiles());
         assertEquals(MulticastUnicastMode.TRUSTED, settings.getMulticastUnicastMode());
         assertFalse(settings.isAutoEncryptUnicast());
@@ -146,6 +150,8 @@ public class PropertyFileSettingsLoaderTest {
         properties.setProperty(THEME_DARK_END_HOUR.getKey(), "25");
         properties.setProperty(AUTO_ACCEPT_FILES.getKey(), "unknown");
         properties.setProperty(MULTICAST_UNICAST_MODE.getKey(), "unknown");
+        properties.setProperty(FONT_SIZE.getKey(), "not a number");
+        properties.setProperty(FONT_NAME.getKey(), "");
 
         when(propertyTools.loadProperties(anyString())).thenReturn(properties);
 
@@ -156,6 +162,8 @@ public class PropertyFileSettingsLoaderTest {
         assertEquals(9, settings.getThemeDarkEndHour());
         assertEquals(AutoAcceptFiles.IMAGES, settings.getAutoAcceptFiles());
         assertEquals(MulticastUnicastMode.ALL, settings.getMulticastUnicastMode());
+        assertEquals(0, settings.getFontSize());
+        assertEquals("", settings.getFontName());
     }
 
     @Test
