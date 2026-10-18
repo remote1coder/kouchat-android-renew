@@ -314,12 +314,16 @@ public class ControllerTest {
         final User user = new User("User1", 124);
         userList.add(user);
 
-        assertEquals(1, userList.indexOf(user));
+        // The list is sorted by nick name, and "me" uses the OS user name, so the
+        // exact index depends on the machine. Assert membership, not position.
+        assertEquals(2, userList.size());
+        assertTrue(userList.indexOf(user) >= 0);
         assertTrue(user.isOnline());
 
         controller.removeUser(user, "Bla bla");
 
         assertEquals(-1, userList.indexOf(user));
+        assertEquals(1, userList.size());
         assertFalse(user.isOnline());
     }
 
