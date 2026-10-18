@@ -12,6 +12,8 @@ tmp
 local.properties
 build
 
-# AI-generated docs: README (no extension) stays tracked; all .md files are local-only
+# Local notes: all .md files are ignored except the project README
 *.md
+!README.md
+!readme.md
 .claude/
