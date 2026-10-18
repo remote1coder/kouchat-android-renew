@@ -99,22 +99,16 @@ Android Studio creates this file automatically when you open the project.
 
 ### 3. Use JDK 17
 
-`gradle.properties` contains:
-
-```properties
-org.gradle.java.home=C:/Program Files/Android/Android Studio/jbr
-```
-
-That path is the JBR bundled with Android Studio on the machine where the fork was
-built. **If it does not exist on your machine, change it to your JDK 17 home or delete
-the line** and set `JAVA_HOME` instead. A wrong value fails immediately with
-`Java home supplied is invalid`.
-
-Check the toolchain:
+Gradle runs on the JDK selected by `JAVA_HOME` (or the `java` on `PATH`):
 
 ```bash
 java -version        # must report 17.x
 ```
+
+The project deliberately does not hardcode a JDK path in `gradle.properties`. If you
+need a per-machine override, set `JAVA_HOME`, or add
+`org.gradle.java.home=/path/to/jdk-17` to `~/.gradle/gradle.properties` (the
+user-level file, not the project file).
 
 ### 4. Build
 
@@ -243,12 +237,12 @@ kouchat-android/
 │       └── androidTest/              # 36 Java files: Robotium UI tests
 ├── build.gradle                      # AGP 8.5.0, Kotlin 1.9.24
 ├── gradle/wrapper/                   # Gradle 8.7 wrapper
-├── gradle.properties                 # AndroidX, JVM args, unused release placeholders
+├── gradle.properties                 # AndroidX, JVM args, release placeholders (unused)
 ├── settings.gradle                   # includes :app
 ├── README.md
 ├── CHANGES                           # upstream changelog
 ├── COPYING                           # GNU LGPL v3
-├── INSTALL                           # upstream build notes (signing part is outdated)
+├── INSTALL                           # build/install and signing notes
 ├── annotation-config/                # IntelliJ/Android Studio inspection config
 ├── checkstyle.xml                    # code style rules
 ├── icons/                            # source SVG icons
@@ -395,8 +389,8 @@ Unit tests live in `app/src/test/java`; instrumented tests and their assets live
 | Symptom | Cause / fix |
 |---|---|
 | `SDK location not found` | Create `local.properties` with `sdk.dir=...` (see step 2). |
-| `Java home supplied is invalid` | `org.gradle.java.home` in `gradle.properties` points to a missing directory. Fix or remove it and set `JAVA_HOME` to JDK 17. |
-| `Unsupported class file major version` / AGP errors | Gradle is running on Java 8 or 11. Use JDK 17. |
+| `Java home supplied is invalid` | A JDK path in `~/.gradle/gradle.properties` or `-Dorg.gradle.java.home` is wrong. Fix or remove it. |
+| `Unsupported class file major version` / AGP errors | Gradle is running on the wrong JDK. Set `JAVA_HOME` to JDK 17. |
 | Peers never appear | Devices must be on the same subnet. Disable AP/client isolation; allow multicast. Try Broadcast or Unicast mode. |
 | Messages arrive in one direction only | The AP drops multicast. Enable **Automatic unicast channels** (`all` or `trusted`) or switch to Unicast/P2P. |
 | File transfer hangs | Requests auto-reject after 60 s. Check the TCP port range (40756+) in the firewall. |
@@ -407,13 +401,12 @@ Unit tests live in `app/src/test/java`; instrumented tests and their assets live
 ## Repository and remotes
 
 ```
-origin    git@github.com:remote1coder/kouchat-android-renew.git   # push here
-upstream  https://github.com/blurpy/kouchat-android               # read-only
+origin    git@github.com:remote1coder/kouchat-android-renew.git   # only remote
 ```
 
-`upstream` is the original project and is configured as **fetch-only**:
-`git remote set-url --push upstream no_push`. Never push fork commits to
-`blurpy/kouchat-android`; send changes to `origin` instead.
+The original project, `blurpy/kouchat-android`, is **not** configured as a remote in
+this clone, so `git push` can only reach the renew repository. Never add it as a push
+target.
 
 Documentation policy: only `README.md` (and an optional `readme.md`) is tracked.
 `*.md` is ignored by `.gitignore`, so local notes such as `changes.md` stay out of the

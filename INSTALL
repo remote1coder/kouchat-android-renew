@@ -1,10 +1,61 @@
 
 - KouChat Android INSTALL
 
-KouChat is built with Gradle.
+KouChat Android is built with Gradle. README.md contains the full build,
+architecture, settings and troubleshooting documentation.
 
-Use './gradlew clean test lint assembleDebug' to create an installable debug .apk in the app/build/outputs/apk folder.
+Requirements
+------------
+- JDK 17 (required by Android Gradle Plugin 8.5)
+- Android SDK Platform 36 (compileSdk 36 / targetSdk 36)
+- Gradle 8.7, provided by the wrapper (no separate installation)
 
-To create a signed release .apk you need to configure a keystore.
-Update gradle.properties with valid values and build using './gradlew clean build'.
-See this page for details: https://developer.android.com/studio/publish/app-signing.html
+Prepare
+-------
+Create local.properties in the project root (this file is not tracked):
+
+  sdk.dir=/path/to/Android/Sdk
+
+Forward slashes work on Windows, macOS and Linux. Android Studio creates this
+file automatically when the project is opened.
+
+Gradle runs on the JDK selected by JAVA_HOME (or the java on PATH). The
+project deliberately does not hardcode a JDK path in gradle.properties.
+
+Debug build
+-----------
+  ./gradlew clean test lint assembleDebug        # macOS, Linux, Git Bash
+  gradlew.bat clean test lint assembleDebug      # Windows cmd / PowerShell
+
+The installable APK is written to:
+
+  app/build/outputs/apk/debug/app-debug.apk
+
+Install it on a connected device with:
+
+  adb install -r app/build/outputs/apk/debug/app-debug.apk
+
+Release build
+-------------
+  ./gradlew assembleRelease
+
+app/build.gradle does not define a signingConfigs block, so this produces an
+UNSIGNED APK:
+
+  app/build/outputs/apk/release/app-release-unsigned.apk
+
+To create a signed release APK, use Android Studio's
+"Build > Generate Signed Bundle / APK", add a signingConfigs block to
+app/build.gradle, or sign the unsigned APK manually:
+
+  "$ANDROID_HOME/build-tools/34.0.0/apksigner" sign \
+    --ks my-release.jks \
+    --out app-release-signed.apk \
+    app/build/outputs/apk/release/app-release-unsigned.apk
+
+The RELEASE_STORE_FILE, RELEASE_STORE_PASSWORD, RELEASE_KEY_ALIAS and
+RELEASE_KEY_PASSWORD entries in gradle.properties are placeholders. They are
+not referenced by any build script, and they must not contain real secrets in
+a tracked file.
+
+See https://developer.android.com/studio/publish/app-signing.html for details.
